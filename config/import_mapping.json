@@ -1,0 +1,9 @@
+{
+  "toan": ["toán", "môn toán"],
+  "tieng_viet": ["tiếng việt", "tieng viet", "môn tiếng việt"],
+  "ngoai_ngu": ["ngoại ngữ", "ngoai ngu", "tiếng anh", "tieng anh", "môn ngoại ngữ"],
+  "nang_luc": ["năng lực", "nang luc", "mức đạt nl", "n.lực"],
+  "pham_chat": ["phẩm chất", "pham chat", "mức đạt pc", "p.chất"],
+  "khoa_hoc": ["khoa học", "khoa hoc", "môn khoa học"],
+  "lich_su_dia_ly": ["lịch sử và địa lý", "lich su", "địa lý", "dia ly"]
+}

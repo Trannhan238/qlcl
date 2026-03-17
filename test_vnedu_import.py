@@ -1,0 +1,82 @@
+"""
+Validation script for the fixed-structure VNEDU parser.
+Tests against ALL files in the input/ folder.
+"""
+
+import sys
+import io
+from pathlib import Path
+
+# Force UTF-8 output
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+
+from app.infra.vnedu_parser import parse_vnedu_file
+
+INPUT_DIR = Path("input")
+
+def validate_result(result: dict) -> list:
+    """Return a list of warning strings for any rule violations."""
+    warnings = []
+    subj = result.get("subject", "")
+    score = result.get("avg_score")
+    T, H, C = result.get("T", 0), result.get("H", 0), result.get("C", 0)
+
+    if score is not None and not isinstance(score, float):
+        warnings.append(f"avg_score is not float: {score!r}")
+    if score is not None and (score < 0 or score > 10):
+        warnings.append(f"avg_score out of range [0,10]: {score}")
+    if T + H + C == 0 and score is None:
+        warnings.append("No data at all for this subject")
+
+    return warnings
+
+
+def run():
+    files = sorted(INPUT_DIR.glob("*.xls")) + sorted(INPUT_DIR.glob("*.xlsx"))
+    if not files:
+        print("[ERROR] No .xls or .xlsx files found in input/")
+        return
+
+    grand_total = 0
+
+    for file_path in files:
+        print(f"\n{'='*60}")
+        print(f"FILE: {file_path.name}")
+        print(f"{'='*60}")
+
+        try:
+            results = parse_vnedu_file(str(file_path))
+        except Exception as e:
+            print(f"[ERROR] Failed to parse {file_path.name}: {e}")
+            import traceback; traceback.print_exc()
+            continue
+
+        if not results:
+            print("[!] No results extracted.")
+            continue
+
+        grand_total += len(results)
+        print(f"[*] Extracted {len(results)} subject entries\n")
+
+        any_warnings = False
+        for r in results:
+            warns = validate_result(r)
+            flag = " [WARN]" if warns else ""
+            print(
+                f"  Class: {r['class']:<8} | Subject: {r['subject']:<20} | "
+                f"AvgScore: {str(r['avg_score']):<6} | T={r['T']:>3}  H={r['H']:>3}  C={r['C']:>3}{flag}"
+            )
+            for w in warns:
+                print(f"    ⚠ {w}")
+                any_warnings = True
+
+        if not any_warnings:
+            print("\n  [OK] All validation rules passed.")
+
+    print(f"\n{'='*60}")
+    print(f"[*] TOTAL entries across all files: {grand_total}")
+    print(f"{'='*60}")
+
+
+if __name__ == "__main__":
+    run()
