@@ -166,6 +166,9 @@ def parse_sheet(df: pd.DataFrame, class_name: str, academic_year: str) -> List[D
     
     # Filter out empty rows at the end (summary rows usually have nan in col 0)
     data_rows = data_rows[data_rows.iloc[:, 0].apply(lambda x: str(x).isdigit())]
+    
+    # Count valid student rows (this is the true student count)
+    student_count = len(data_rows)
 
     for subj, cols in subjects.items():
         level_col = cols["level_col"]
@@ -185,14 +188,26 @@ def parse_sheet(df: pd.DataFrame, class_name: str, academic_year: str) -> List[D
             if not scores.empty:
                 avg_score = round(float(scores.mean()), 2)
 
+        # Calculate percentages based on actual student_count
+        T_pct = H_pct = C_pct = None
+        total_evaluated = T + H + C
+        if student_count > 0:
+            T_pct = round(T / student_count * 100, 2)
+            H_pct = round(H / student_count * 100, 2)
+            C_pct = round(C / student_count * 100, 2)
+
         results.append({
-            "class":     class_name,
+            "class":         class_name,
             "academic_year": academic_year,
-            "subject":   subj,
-            "avg_score": avg_score,
-            "T": T,
-            "H": H,
-            "C": C,
+            "subject":       subj,
+            "avg_score":     avg_score,
+            "student_count": student_count,
+            "T":             T,
+            "H":             H,
+            "C":             C,
+            "T_pct":         T_pct,
+            "H_pct":         H_pct,
+            "C_pct":         C_pct,
         })
 
     return results

@@ -1,5 +1,5 @@
 from app.core.snapshot import get_metric_snapshots
-from app.core.compare import compare_metric, safe_subtract, choose_actual
+from app.core.compare import compare_metric, safe_subtract
 from app.models.domain import MetricSnapshot
 
 def test_core_logic():
@@ -9,10 +9,6 @@ def test_core_logic():
     assert safe_subtract(10.0, None) is None
     assert safe_subtract(None, None) is None
     
-    print("Testing choose_actual...")
-    assert choose_actual({"actual_hk1": 7.0, "actual_hk2": 8.0}) == 8.0
-    assert choose_actual({"actual_hk1": 7.0, "actual_hk2": None}) == 7.0
-    assert choose_actual({"actual_hk1": None, "actual_hk2": None}) is None
 
     print("Testing get_metric_snapshots...")
     snapshots = [
@@ -30,7 +26,7 @@ def test_core_logic():
     assert data["commitment"] is None
 
     print("Testing compare_metric - Standard Case...")
-    result1 = compare_metric(data)
+    result1 = compare_metric(data, selected_snapshot="actual_hk1")
     assert result1["actual"] == 7.5
     assert result1["delta_baseline"] == 1.5
     assert result1["delta_target"] == -0.5

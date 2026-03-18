@@ -13,7 +13,7 @@ import pandas as pd
 import plotly.express as px
 
 from app.infra.vnedu_parser import parse_vnedu_file
-from app.core.compare import compare_metric
+from app.core.compare import compare_metric, compare_with_targets, compute_thc_percentages
 
 # ── DB setup ──────────────────────────────────────────────────────────────────
 DB_PATH = root_dir / "sqms.db"
@@ -22,6 +22,35 @@ def get_conn() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_PATH)
     conn.row_factory = sqlite3.Row
     return conn
+
+def get_table_columns(conn: sqlite3.Connection) -> set:
+    """Get set of column names for subject_snapshots table."""
+    cursor = conn.execute("PRAGMA table_info(subject_snapshots)")
+    return {row[1] for row in cursor.fetchall()}
+
+def migrate_db():
+    """Migrate existing database to support new columns."""
+    with get_conn() as conn:
+        columns = get_table_columns(conn)
+        
+        if "student_count" not in columns:
+            try:
+                conn.execute("ALTER TABLE subject_snapshots ADD COLUMN student_count INTEGER")
+            except sqlite3.Error as e:
+                pass
+        
+        if "avg_score" not in columns:
+            conn.execute("ALTER TABLE subject_snapshots ADD COLUMN avg_score REAL")
+
+def get_student_count(row: sqlite3.Row) -> int:
+    """Safely get student_count from row, fallback to T+H+C if column missing."""
+    try:
+        if "student_count" in row.keys():
+            sc = row["student_count"]
+            return sc if sc is not None else (row["T"] + row["H"] + row["C"])
+        return row["T"] + row["H"] + row["C"]
+    except (KeyError, TypeError):
+        return row["T"] + row["H"] + row["C"]
 
 def init_db():
     with get_conn() as conn:
@@ -32,28 +61,35 @@ def init_db():
                 class_name    TEXT NOT NULL,
                 subject       TEXT NOT NULL,
                 snapshot_type TEXT NOT NULL,
-                avg_score     REAL,          -- NULL means no score column for this subject
+                avg_score     REAL,
+                student_count INTEGER,
                 T             INTEGER NOT NULL DEFAULT 0,
                 H             INTEGER NOT NULL DEFAULT 0,
                 C             INTEGER NOT NULL DEFAULT 0,
                 UNIQUE(academic_year, class_name, subject, snapshot_type)
             )
         """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_snapshots_class_year 
+            ON subject_snapshots(academic_year, class_name)
+        """)
 
-def upsert_subject(conn, academic_year, class_name, subject, snapshot_type, avg_score, T, H, C):
+def upsert_subject(conn, academic_year, class_name, subject, snapshot_type, avg_score, student_count, T, H, C):
     conn.execute("""
         INSERT INTO subject_snapshots
-            (academic_year, class_name, subject, snapshot_type, avg_score, T, H, C)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            (academic_year, class_name, subject, snapshot_type, avg_score, student_count, T, H, C)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON CONFLICT(academic_year, class_name, subject, snapshot_type)
         DO UPDATE SET
             avg_score = excluded.avg_score,
+            student_count = excluded.student_count,
             T = excluded.T, H = excluded.H, C = excluded.C
-    """, (academic_year, class_name, subject, snapshot_type, avg_score, T, H, C))
+    """, (academic_year, class_name, subject, snapshot_type, avg_score, student_count, T, H, C))
 
 # ── Page setup ────────────────────────────────────────────────────────────────
 st.set_page_config(page_title="Báo cáo Chất lượng Giáo dục (SQMS)", layout="wide")
 init_db()
+migrate_db()
 
 def main():
     st.title("Hệ thống Quản lý Chất lượng Giáo dục (SQMS)")
@@ -78,6 +114,17 @@ def main():
         format_func=lambda x: label_map[x]
     )
 
+    # Year override selector for semantic mismatch fix
+    # When importing, user can select which academic year this data is FOR
+    # (e.g., end-of-year 2024-2025 used as baseline for 2025-2026)
+    st.sidebar.caption("Năm học áp dụng (mặc định: từ tệp)")
+    year_override = st.sidebar.text_input(
+        "Năm học áp dụng",
+        value="",
+        placeholder="VD: 2025-2026 (để trống = dùng năm từ tệp)",
+        help="Để trống để dùng năm học từ tệp Excel. Nhập năm học để ghi đè (VD: năm cuối năm 2024-2025 làm baseline cho 2025-2026)"
+    )
+
     if uploaded_file is not None:
         if st.sidebar.button("Xử lý & Lưu vào CSDL"):
             temp_path = root_dir / "temp_upload.xls"
@@ -88,11 +135,14 @@ def main():
                 with st.spinner(f"Đang lưu {len(results)} bản ghi..."):
                     with get_conn() as conn:
                         for r in results:
+                            # Override academic_year if user specified a target year
+                            target_year = year_override.strip() if year_override.strip() else r["academic_year"]
                             upsert_subject(
                                 conn,
-                                r["academic_year"], r["class"], r["subject"],
+                                target_year, r["class"], r["subject"],
                                 snapshot_type,
-                                r["avg_score"],      # may be None
+                                r["avg_score"],
+                                r.get("student_count"),
                                 int(r["T"]), int(r["H"]), int(r["C"])
                             )
                 st.sidebar.success(f"Đã nhập thành công {len(results)} môn học.")
@@ -114,16 +164,31 @@ def main():
         return
 
     st.header("Bảng Tổng hợp")
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
     with col1:
         selected_year = st.selectbox("Năm học:", years)
     with col2:
         selected_class = st.selectbox("Lớp:", classes)
+    with col3:
+        # Standardize the terminology for the view filter
+        label_map_view = {
+            "actual_hk1": "Kết quả Thực tế HK1",
+            "actual_hk2": "Kết quả Thực tế HK2",
+            "baseline":   "Dữ liệu Đầu năm",
+            "target":     "Chỉ tiêu Phấn đấu",
+            "commitment": "Chỉ tiêu Cam kết"
+        }
+        selected_snapshot = st.selectbox(
+            "Xem dữ liệu của:", 
+            options=["actual_hk1", "actual_hk2", "baseline", "target", "commitment"],
+            format_func=lambda x: label_map_view.get(x, x),
+            index=0
+        )
 
     # ── Data query ────────────────────────────────────────────────────────────
     with get_conn() as conn:
         rows = conn.execute("""
-            SELECT subject, snapshot_type, avg_score, T, H, C
+            SELECT subject, snapshot_type, avg_score, student_count, T, H, C
             FROM subject_snapshots
             WHERE academic_year = ? AND class_name = ?
             ORDER BY subject
@@ -133,81 +198,131 @@ def main():
         st.warning(f"Không có dữ liệu cho lớp {selected_class} / năm học {selected_year}.")
         return
 
-    # Group by subject → collect snapshot_type data for compare_metric
+    # Group by subject → collect data for comparison
     from collections import defaultdict
-    subject_data: dict = defaultdict(lambda: {"T": 0, "H": 0, "C": 0, "score_data": {}})
+    subject_data: dict = defaultdict(lambda: {
+        "student_count": 0, "T": 0, "H": 0, "C": 0,
+        "T_pct": None, "H_pct": None, "C_pct": None,
+        "score_data": {}, "target_score": None,
+        "target_T_pct": None, "target_H_pct": None, "target_C_pct": None,
+    })
+
+    is_actual = selected_snapshot in ("actual_hk1", "actual_hk2")
 
     for r in rows:
         d = subject_data[r["subject"]]
-        # Keep the latest snapshot's T/H/C (prefer selected snapshot_type)
-        d["T"] = r["T"]
-        d["H"] = r["H"]
-        d["C"] = r["C"]
-        # Build score_data dict for compare_metric
-        if r["avg_score"] is not None:
-            d["score_data"][r["snapshot_type"]] = r["avg_score"]
+        snapshot_type = r["snapshot_type"]
+        student_count = get_student_count(r)
+        
+        if snapshot_type == selected_snapshot:
+            d["student_count"] = student_count
+            d["T"] = r["T"]
+            d["H"] = r["H"]
+            d["C"] = r["C"]
+            if d["student_count"] > 0:
+                pct = compute_thc_percentages(r["T"], r["H"], r["C"], d["student_count"])
+                d["T_pct"] = pct["T_pct"]
+                d["H_pct"] = pct["H_pct"]
+                d["C_pct"] = pct["C_pct"]
+
+        avg_score = r["avg_score"] if "avg_score" in r.keys() else None
+        if avg_score is not None:
+            d["score_data"][snapshot_type] = avg_score
+        
+        if snapshot_type in ("target", "commitment") and avg_score is not None:
+            d["target_score"] = avg_score
+            if student_count > 0:
+                pct = compute_thc_percentages(r["T"], r["H"], r["C"], student_count)
+                d["target_T_pct"] = pct["T_pct"]
+                d["target_H_pct"] = pct["H_pct"]
+                d["target_C_pct"] = pct["C_pct"]
+
 
     # ── Build table ───────────────────────────────────────────────────────────
-    trend_map = {
-        "increase": "↗ Tăng",
-        "decrease": "↘ Giảm",
-        "equal":    "→ Không đổi",
-        "unknown":  "-"
-    }
     status_map = {
         "achieved":     "✅ Đạt",
         "not_achieved": "❌ Chưa đạt",
+        "partial":      "⚠️ Một phần",
         "unknown":      "-"
     }
 
     table_rows = []
     for subject, d in subject_data.items():
-        comp = compare_metric(d["score_data"])
+        score_comp = compare_metric(d["score_data"], selected_snapshot)
+        target_comp = compare_with_targets(
+            d["T_pct"] if d["student_count"] > 0 else None,
+            d["H_pct"] if d["student_count"] > 0 else None,
+            d["C_pct"] if d["student_count"] > 0 else None,
+            d["target_score"],
+            d["target_T_pct"],
+            d["target_H_pct"],
+            d["target_C_pct"],
+        )
+        
+        # Format percentage display
+        def fmt_pct(val):
+            if val is None:
+                return "-"
+            return f"{val:.1f}%"
+        
+        def fmt_delta(val):
+            if val is None:
+                return "-"
+            sign = "+" if val > 0 else ""
+            return f"{sign}{val:.2f}"
+        
         table_rows.append({
-            "Môn học":        subject,
-            "Điểm TB":        comp["actual"],
-            "Tốt (T)":        d["T"],
-            "Hoàn thành (H)": d["H"],
-            "Chưa đạt (C)":   d["C"],
-            "Chênh (Chỉ tiêu)": comp["delta_target"],
-            "Xu hướng":       trend_map.get(comp["trend"], "-"),
-            "Trạng thái":     status_map.get(comp["status"], "-"),
+            "Môn học":          subject,
+            "Điểm TB":          score_comp["actual"],
+            "Chênh Điểm":       fmt_delta(score_comp["delta_target"]),
+            "T (%)":            fmt_pct(d["T_pct"]),
+            "H (%)":            fmt_pct(d["H_pct"]),
+            "C (%)":            fmt_pct(d["C_pct"]),
+            "Chênh T%":         fmt_delta(target_comp["T_delta"]),
+            "Chênh C%":         fmt_delta(target_comp["C_delta"]),
+            "Trạng thái":       status_map.get(target_comp["score_status"], "-"),
         })
 
     df = pd.DataFrame(table_rows)
-    # Ensure numeric types for core data columns
-    df["Điểm TB"] = pd.to_numeric(df["Điểm TB"], errors="coerce")
-    df["Chênh (Chỉ tiêu)"] = pd.to_numeric(df["Chênh (Chỉ tiêu)"], errors="coerce")
-
-    # Formatting for display only
-    df_display = df.copy()
-    for col in ["Điểm TB", "Chênh (Chỉ tiêu)"]:
-        df_display[col] = df_display[col].round(2).astype("string").fillna("-")
+    df_numeric = df.copy()
+    df_numeric["Điểm TB"] = pd.to_numeric(df_numeric["Điểm TB"], errors="coerce")
 
     st.subheader(f"Chỉ số chất lượng — {selected_class} ({selected_year})")
-    st.dataframe(df_display, width="stretch")
+    st.dataframe(df, width="stretch")
 
     # ── Charts ────────────────────────────────────────────────────────────────
     st.divider()
     c1, c2 = st.columns(2)
 
     with c1:
-        st.subheader("Phân bố mức độ T / H / C")
-        df_melt = df.melt(id_vars=["Môn học"], value_vars=["Tốt (T)", "Hoàn thành (H)", "Chưa đạt (C)"],
-                          var_name="Mức độ", value_name="Số lượng")
-        fig1 = px.bar(df_melt, x="Môn học", y="Số lượng", color="Mức độ", barmode="group",
-                      color_discrete_map={"Tốt (T)": "#2ecc71", "Hoàn thành (H)": "#f1c40f", "Chưa đạt (C)": "#e74c3c"})
-        st.plotly_chart(fig1, width="stretch")
+        st.subheader("Phân bố mức độ T / H / C (%)")
+        df_pct = df[df["T (%)"] != "-"].copy()
+        if not df_pct.empty:
+            df_melt = df_pct.melt(
+                id_vars=["Môn học"], 
+                value_vars=["T (%)", "H (%)", "C (%)"],
+                var_name="Mức độ", value_name="Phần trăm"
+            )
+            df_melt["Phần trăm"] = df_melt["Phần trăm"].str.rstrip("%").astype(float)
+            fig1 = px.bar(
+                df_melt, x="Môn học", y="Phần trăm", color="Mức độ", barmode="group",
+                color_discrete_map={"T (%)": "#2ecc71", "H (%)": "#f1c40f", "C (%)": "#e74c3c"}
+            )
+            st.plotly_chart(fig1, width="stretch")
+        else:
+            st.info("Không có dữ liệu T/H/C để hiển thị")
 
     with c2:
         st.subheader("Điểm trung bình theo Môn học")
-        # Use raw numeric df for charts to avoid label issues
         df_score = df.dropna(subset=["Điểm TB"]).copy()
-        fig2 = px.bar(
-            df_score, x="Môn học", y="Điểm TB", color="Trạng thái",
-            color_discrete_map={"✅ Đạt": "#2ecc71", "❌ Chưa đạt": "#e74c3c", "-": "gray"}
-        )
-        st.plotly_chart(fig2, width="stretch")
+        if not df_score.empty:
+            fig2 = px.bar(
+                df_score, x="Môn học", y="Điểm TB", color="Trạng thái",
+                color_discrete_map={"✅ Đạt": "#2ecc71", "❌ Chưa đạt": "#e74c3c", "-": "gray"}
+            )
+            st.plotly_chart(fig2, width="stretch")
+        else:
+            st.info("Không có dữ liệu điểm để hiển thị")
 
 if __name__ == "__main__":
     main()
