@@ -1,55 +1,63 @@
-import shutil
+"""
+Test database operations với repository mới.
+
+Test:
+- init_db
+- SubjectSnapshotRepository upsert/find
+- ClassSummaryRepository upsert/find
+"""
+
 from pathlib import Path
-from app.infra import database
-from app.infra.repositories import ClassRepository, MetricRepository, SnapshotRepository
-from app.models.domain import ClassInfo, Metric, MetricSnapshot
+from app.db.connection import init_db
+from app.repositories import SqliteSubjectSnapshotRepository, SqliteClassSummaryRepository
+from app.domain.models import SubjectSnapshot, ClassSummary, SnapshotType
+
 
 def test_db():
-    # Setup test DB
-    test_db_path = Path("test_sqms.db")
-    if test_db_path.exists():
-        test_db_path.unlink()
-    
-    database.set_db_path(test_db_path)
-    database.init_db()
+    # Setup test DB (sử dụng DB thật)
+    init_db()
     print("Database initialized.")
 
-    # Repositories
-    class_repo = ClassRepository()
-    metric_repo = MetricRepository()
-    snapshot_repo = SnapshotRepository()
+    subject_repo = SqliteSubjectSnapshotRepository()
+    class_summary_repo = SqliteClassSummaryRepository()
 
-    # 1. Create Class
-    c1 = ClassInfo(id="c1", grade="10", name="10A1")
-    class_repo.add(c1)
-    
-    # 2. Create Metric
-    m1 = Metric(id="m1", name="Math Score", description="Average Math Score")
-    metric_repo.add(m1)
+    # 1. Create SubjectSnapshot
+    s1 = SubjectSnapshot(
+        academic_year="2024-2025",
+        class_name="10A1",
+        subject="Toan",
+        snapshot_type=SnapshotType.BASELINE,
+        avg_score=7.5,
+        student_count=30,
+        T=10, H=15, C=5
+    )
+    subject_repo.upsert(s1)
+    print("Upserted SubjectSnapshot")
 
-    # 3. Create Snapshots
-    s1 = MetricSnapshot(id="s1", class_id="c1", metric_id="m1", snapshot_type="baseline", value=6.5)
-    s2 = MetricSnapshot(id="s2", class_id="c1", metric_id="m1", snapshot_type="target", value=8.0)
-    snapshot_repo.add(s1)
-    snapshot_repo.add(s2)
+    # 2. Create ClassSummary
+    cs1 = ClassSummary(
+        academic_year="2024-2025",
+        class_name="10A1",
+        snapshot_type=SnapshotType.BASELINE,
+        HTXS=10, HTT=15, HT=5, CHT=0
+    )
+    class_summary_repo.upsert(cs1)
+    print("Upserted ClassSummary")
 
-    # 4. Verify Retrieval
-    classes = class_repo.get_all()
-    print(f"Classes: {classes}")
-    assert len(classes) == 1
-    assert classes[0].name == "10A1"
+    # 3. Verify Retrieval
+    subjects = subject_repo.find_by_class_and_year("10A1", "2024-2025")
+    print(f"Subjects: {subjects}")
+    assert len(subjects) == 1
+    assert subjects[0].subject == "Toan"
 
-    metrics = metric_repo.get_all()
-    print(f"Metrics: {metrics}")
-    assert len(metrics) == 1
+    summaries = class_summary_repo.find_by_class_and_year("10A1", "2024-2025")
+    print(f"Summaries: {summaries}")
+    # summaries trả về Optional, cần kiểm tra None
+    assert summaries is not None
+    assert summaries.HTXS == 10
 
-    snapshots = snapshot_repo.get_all_for_class("c1")
-    print(f"Snapshots for c1: {snapshots}")
-    assert len(snapshots) == 2
+    print("All tests passed!")
 
-    print("All tests passed! Cleaning up...")
-    if test_db_path.exists():
-        test_db_path.unlink()
 
 if __name__ == "__main__":
     test_db()

@@ -39,213 +39,24 @@ root_dir = Path(__file__).parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
+from app.domain.models import SnapshotType, ProcessResult
+from app.domain.adapters import ParserResultAdapter
+from app.repositories import SqliteSubjectSnapshotRepository, SqliteClassSummaryRepository
+from app.usecases.process_excel import ProcessExcelUseCase
 from app.infra.vnedu_parser import parse_vnedu_file_with_class_summary, normalize_year, _normalize  # noqa: E402
+from app.infra.excel_normalizer import normalize_excel, validate_excel_structure  # NEW
 from app.core.compare import compare_metric, compare_with_targets, compute_thc_percentages  # noqa: E402
-
-# ═══════════════════════════════════════════════════════════════════════════════
-# DATABASE LAYER - Kết nối và quản lý SQLite
-# ═══════════════════════════════════════════════════════════════════════════════
-
-# Đường dẫn file SQLite (nằm cùng cấp với project root)
-DB_PATH = root_dir / "sqms.db"
+from app.db.connection import get_conn, migrate_db, init_db, init_teacher_commitments, init_student_achievements, init_class_summary  # noqa: E402
 
 
-def get_conn() -> sqlite3.Connection:
-    """
-    Mô tả:
-        Tạo kết nối SQLite mới với row_factory=sqlite3.Row.
-
-    Output:
-        (sqlite3.Connection): Connection đã configure
-
-    Lưu ý:
-        - Gọi close() sau khi dùng xong
-        - Hoặc dùng context manager: with get_conn() as conn:
-    """
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
-    return conn
 
 
-def table_exists(conn: sqlite3.Connection, table_name: str) -> bool:
-    """
-    Mô tả:
-        Kiểm tra table có tồn tại trong database không.
-
-    Input:
-        conn (sqlite3.Connection): Kết nối database
-        table_name (str): Tên table cần kiểm tra
-
-    Output:
-        (bool): True nếu table tồn tại
-    """
-    cur = conn.execute(
-        "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
-        (table_name,),
-    )
-    return cur.fetchone() is not None
-
-
-def migrate_db():
-    """
-    Mô tả:
-        Migration database - thêm columns thiếu và chuẩn hoá academic_year.
-
-    Logic:
-        1. Thêm student_count, avg_score vào subject_snapshots nếu chưa có
-        2. Chuẩn hoá format academic_year: "2024 - 2025" -> "2024-2025"
-
-    Lưu ý:
-        - Dùng table_exists() để tránh crash khi table chưa tồn tại
-        - Gọi sau init_db() trong main()
-    """
-    conn = get_conn()
-    try:
-        # Chỉ migrate nếu table tồn tại
-        if table_exists(conn, "subject_snapshots"):
-            # Thêm columns mới nếu thiếu (hỗ trợ old database)
-            columns = {row[1] for row in conn.execute("PRAGMA table_info(subject_snapshots)").fetchall()}
-            if "student_count" not in columns:
-                conn.execute("ALTER TABLE subject_snapshots ADD COLUMN student_count INTEGER")
-            if "avg_score" not in columns:
-                conn.execute("ALTER TABLE subject_snapshots ADD COLUMN avg_score REAL")
-
-            # Chuẩn hoá academic_year: loại bỏ khoảng trắng thừa
-            conn.execute("UPDATE subject_snapshots SET academic_year = REPLACE(academic_year, ' - ', '-')")
-            conn.execute("UPDATE subject_snapshots SET academic_year = REPLACE(academic_year, '  -  ', '-')")
-
-        if table_exists(conn, "teacher_commitments"):
-            conn.execute("UPDATE teacher_commitments SET academic_year = REPLACE(academic_year, ' - ', '-')")
-            conn.execute("UPDATE teacher_commitments SET academic_year = REPLACE(academic_year, '  -  ', '-')")
-
-        if table_exists(conn, "class_summary"):
-            conn.execute("UPDATE class_summary SET academic_year = REPLACE(academic_year, ' - ', '-')")
-
-        if table_exists(conn, "student_achievements"):
-            conn.execute("UPDATE student_achievements SET academic_year = REPLACE(academic_year, ' - ', '-')")
-
-        conn.commit()
-    finally:
-        conn.close()
-
-
-def init_db():
-    """
-    Mô tả:
-        Khởi tạo bảng subject_snapshots - lưu điểm và T/H/C theo môn học.
-
-    Schema:
-        - academic_year: Năm học (format: YYYY-YYYY)
-        - class_name: Tên lớp (VD: "1A")
-        - subject: Tên môn học
-        - snapshot_type: Loại snapshot (actual_hk1, actual_hk2, baseline, target)
-        - avg_score: Điểm trung bình
-        - student_count: Tổng số học sinh
-        - T, H, C: Số học sinh mỗi loại
-
-    Data Contract - subject_snapshots:
-        Key duy nhất: (academic_year, class_name, subject, snapshot_type)
-    """
-    with get_conn() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS subject_snapshots (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                academic_year TEXT NOT NULL,
-                class_name TEXT NOT NULL,
-                subject TEXT NOT NULL,
-                snapshot_type TEXT NOT NULL,
-                avg_score REAL,
-                student_count INTEGER,
-                T INTEGER NOT NULL DEFAULT 0,
-                H INTEGER NOT NULL DEFAULT 0,
-                C INTEGER NOT NULL DEFAULT 0,
-                UNIQUE(academic_year, class_name, subject, snapshot_type)
-            )
-        """)
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_snapshots ON subject_snapshots(academic_year, class_name)")
-
-
-def init_teacher_commitments():
-    """
-    Mô tả:
-        Khởi tạo bảng teacher_commitments - lưu cam kết của giáo viên.
-
-    Schema:
-        - avg_score_target: Mục tiêu điểm trung bình
-        - T_pct_target, H_pct_target, C_pct_target: Mục tiêu phần trăm T/H/C
-        - HTXS_target, HTT_target, HT_target, CHT_target: Mục tiêu xếp loại cấp lớp
-    """
-    with get_conn() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS teacher_commitments (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                academic_year TEXT NOT NULL,
-                class_name TEXT NOT NULL,
-                subject TEXT NOT NULL,
-                avg_score_target REAL,
-                T_pct_target REAL,
-                H_pct_target REAL,
-                C_pct_target REAL,
-                HTXS_target INTEGER DEFAULT 0,
-                HTT_target INTEGER DEFAULT 0,
-                HT_target INTEGER DEFAULT 0,
-                CHT_target INTEGER DEFAULT 0,
-                UNIQUE(academic_year, class_name, subject)
-            )
-        """)
-
-
-def init_student_achievements():
-    """
-    Mô tả:
-        Khởi tạo bảng student_achievements - lưu thành tích học sinh.
-
-    Schema:
-        - category: Hạng mục (VD: "IOE", "Văn Toán Tuổi thơ")
-        - level: Cấp độ (Xã, Quận/Huyện, Tỉnh/Thành phố, Quốc gia, Quốc tế)
-        - quantity: Số lượng học sinh đạt giải/thành tích
-    """
-    with get_conn() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS student_achievements (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                academic_year TEXT NOT NULL,
-                category TEXT NOT NULL,
-                level TEXT NOT NULL,
-                quantity INTEGER NOT NULL DEFAULT 0,
-                UNIQUE(academic_year, category, level)
-            )
-        """)
-
-
-def init_class_summary():
-    """
-    Mô tả:
-        Khởi tạo bảng class_summary - lưu tổng hợp xếp loại cấp lớp.
-
-    Schema:
-        - HTXS, HTT, HT, CHT: Số học sinh xếp loại từng cấp
-        - HTCTLH_HT, HTCTLH_CHT: Học sinh hoàn thành/CTLH
-        - HSXS, HS_TieuBieu: Học sinh xuất sắc, tiêu biểu
-    """
-    with get_conn() as conn:
-        conn.execute("""
-            CREATE TABLE IF NOT EXISTS class_summary (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                academic_year TEXT NOT NULL,
-                class_name TEXT NOT NULL,
-                snapshot_type TEXT NOT NULL,
-                HTXS INTEGER DEFAULT 0,
-                HTT INTEGER DEFAULT 0,
-                HT INTEGER DEFAULT 0,
-                CHT INTEGER DEFAULT 0,
-                HTCTLH_HT INTEGER DEFAULT 0,
-                HTCTLH_CHT INTEGER DEFAULT 0,
-                HSXS INTEGER DEFAULT 0,
-                HS_TieuBieu INTEGER DEFAULT 0,
-                UNIQUE(academic_year, class_name, snapshot_type)
-            )
-        """)
+# ─────────────────────────────────────────────────────────────────────────────
+# REPOSITORIES & USECASE INITIALIZATION
+# ─────────────────────────────────────────────────────────────────────────────
+_subject_repo = SqliteSubjectSnapshotRepository()
+_class_summary_repo = SqliteClassSummaryRepository()
+_process_excel_use_case = ProcessExcelUseCase(_subject_repo, _class_summary_repo)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -407,9 +218,9 @@ ACHIEVEMENT_LEVELS = ["Xã", "Quận/Huyện", "Tỉnh/Thành phố", "Quốc gi
 
 # Mapping snapshot_type -> label hiển thị
 LABEL_MAP = {
+    "baseline": "Dữ liệu Đầu năm",
     "actual_hk1": "Kết quả HK1",
     "actual_hk2": "Kết quả HK2",
-    "baseline": "Dữ liệu Đầu năm",
     "target": "Chỉ tiêu Phấn đấu",
     "commitment": "Cam kết GV"
 }
@@ -631,144 +442,67 @@ def render_sidebar():
 
 def process_files(files, snapshot_type, score_delta):
     """
-    Mô tả:
-        Xử lý các file Excel đã upload - parse và lưu vào database.
+    Xử lý các file Excel đã upload - sử dụng use case.
 
-    Logic:
-        1. Parse từng file bằng vnedu_parser
-        2. Nếu snapshot_type == "baseline": shift grade và tạo target
-        3. Upsert vào database (subject_snapshots và class_summary)
-
-    Input:
+    Args:
         files: List các uploaded files
-        snapshot_type (str): Loại dữ liệu
-        score_delta (float|None): Delta điểm cho target generation
+        snapshot_type (str): Loại dữ liệu (baseline, actual_hk1, actual_hk2, target, commitment)
+        score_delta (float|None): Delta điểm cho target generation (chỉ baseline)
 
-    Lưu ý:
-        - Baseline data được shift: lớp 1->2, năm +1
-        - Target được tạo tự động nếu có score_delta
+    Returns:
+        bool: True nếu thành công, False nếu có lỗi
     """
     progress_bar = st.sidebar.progress(0)
     progress_text = st.sidebar.empty()
 
-    all_subjects = []
-    all_class_summary = []
-    targets = []  # temporary targets generated from baseline (no shifting)
-    errors = []
+    # Convert string snapshot_type to enum
+    try:
+        snap_type_enum = SnapshotType(snapshot_type)
+    except ValueError:
+        st.error(f"Invalid snapshot_type: {snapshot_type}")
+        return False
 
-    # Parse từng file
+    total_errors = []
+    saved_subjects_total = 0
+    saved_summaries_total = 0
+
+    # Process từng file
     for idx, file in enumerate(files):
         progress_text.text(f"Đang xử lý {idx + 1}/{len(files)}: {file.name}")
         progress_bar.progress((idx + 1) / len(files))
 
-        # Ghi file tạm để parse
         temp_path = root_dir / f"temp_{uuid.uuid4().hex}_{file.name}"
         try:
             with open(temp_path, "wb") as f:
                 f.write(file.getbuffer())
-            # Parse file Excel - KQGD gate enforcement
-            allow_kqgd = snapshot_type in {"baseline", "actual_hk2"}
-            subjects, class_data = parse_vnedu_file_with_class_summary(
-                str(temp_path), allow_kqgd=allow_kqgd
+
+            # Call use case
+            result: ProcessResult = _process_excel_use_case.execute(
+                file_path=str(temp_path),
+                snapshot_type=snap_type_enum,
+                score_delta=score_delta
             )
-            # Normalize subject names will be handled later, before DB insert (uniformly for all snapshots)
-            all_subjects.extend(subjects)
-            if allow_kqgd:
-                all_class_summary.extend(class_data)
-            # Generate targets from baseline if requested (no shifting)
-            if snapshot_type == "baseline" and score_delta is not None:
-                for r in subjects:
-                    tgt = generate_target_from_baseline(r, score_delta)
-                    if tgt:
-                        targets.append(tgt)
+
+            saved_subjects_total += result.saved_subjects
+            saved_summaries_total += result.saved_class_summaries
+            if result.has_errors():
+                total_errors.extend(result.errors)
+
         except Exception as e:
-            errors.append(f"{file.name}: {e}")
+            total_errors.append(f"{file.name}: {e}")
         finally:
-            # Dọn file tạm
             if temp_path.exists():
                 os.remove(temp_path)
-
-    # Deduplicate by normalized subject name across same (academic_year, class, snapshot_type)
-    deduped_subjects: List[Dict[str, Any]] = []
-    if all_subjects:
-        group: Dict[Tuple, Dict[str, Any]] = {}
-        for r in all_subjects:
-            acc_year = r.get("academic_year")
-            cls = r.get("class_name")
-            snap = r.get("snapshot_type", snapshot_type)
-            subj = r.get("subject", "")
-            norm = _normalize(subj)
-            norm = " ".join(norm.split()) if norm else subj
-            key = (acc_year, cls, snap, norm)
-            if key not in group:
-                group[key] = {
-                    "academic_year": acc_year,
-                    "class_name": cls,
-                    "subject": norm,
-                    "snapshot_type": snap,
-                    "T": 0,
-                    "H": 0,
-                    "C": 0,
-                    "avg_score_sum": 0.0,
-                    "avg_count": 0,
-                    "student_count": r.get("student_count"),
-                }
-            g = group[key]
-            g["T"] += int(r.get("T") or 0)
-            g["H"] += int(r.get("H") or 0)
-            g["C"] += int(r.get("C") or 0)
-            if r.get("avg_score") is not None:
-                g["avg_score_sum"] += float(r["avg_score"])
-                g["avg_count"] += 1
-            sc = r.get("student_count")
-            if sc is not None:
-                if g["student_count"] is None or sc > g["student_count"]:
-                    g["student_count"] = sc
-
-        for gr in group.values():
-            avg_final = None
-            if gr["avg_count"] > 0:
-                avg_final = round(gr["avg_score_sum"] / gr["avg_count"], 2)
-            deduped_subjects.append({
-                "academic_year": gr["academic_year"],
-                "class_name": gr["class_name"],
-                "subject": gr["subject"],
-                "snapshot_type": gr["snapshot_type"],
-                "avg_score": avg_final,
-                "student_count": gr["student_count"],
-                "T": gr["T"],
-                "H": gr["H"],
-                "C": gr["C"],
-            })
-    all_subjects = deduped_subjects
-
-    # Lưu vào database
-    saved_count = 0
-    try:
-        with get_conn() as conn:
-            conn.execute("BEGIN TRANSACTION")
-            for r in all_subjects:
-                # Do not normalize here; normalization happens in grouping step
-                snapshot_type_to_store = r.get("snapshot_type", snapshot_type)
-                upsert_subject(conn, r["academic_year"], r["class_name"], r["subject"], snapshot_type_to_store,
-                               r.get("avg_score"), r.get("student_count"), r["T"], r["H"], r["C"])
-                saved_count += 1
-            for cs in all_class_summary:
-                snapshot_type_to_store_cs = cs.get("snapshot_type", snapshot_type)
-                upsert_class_summary(conn, cs.get("academic_year", ""), cs.get("class_name", ""),
-                                     snapshot_type_to_store_cs, cs.get("HTXS", 0), cs.get("HTT", 0),
-                                     cs.get("HT", 0), cs.get("CHT", 0))
-            conn.execute("COMMIT")
-    except Exception as e:
-        st.error(f"Lỗi lưu dữ liệu: {e}")
-        return False
 
     progress_bar.empty()
     progress_text.empty()
 
-    st.success(f"Đã lưu {saved_count} bản ghi")
-    if errors:
-        st.warning(f"Lỗi: {', '.join(errors)}")
+    if saved_subjects_total > 0 or saved_summaries_total > 0:
+        st.success(f"Đã lưu {saved_subjects_total} subject snapshots và {saved_summaries_total} class summaries")
+    if total_errors:
+        for err in total_errors:
+            st.error(err)
+        return False
 
     return True
 
@@ -1177,7 +911,7 @@ def render_commitments():
 
             if subj_type == "scoring":
                 # Môn có điểm: nhập điểm TB, T/H/C disabled
-                avg_str = row[2].text_input("", key=f"avg_{subj}", label_visibility="collapsed", placeholder="-")
+                avg_str = row[2].text_input("Điểm TB", key=f"avg_{subj}", label_visibility="collapsed", placeholder="-")
                 try:
                     comm_inputs[subj]["avg"] = float(avg_str) if avg_str.strip() else None
                 except ValueError:
@@ -1189,7 +923,7 @@ def render_commitments():
                 # Môn nhận xét: nhập T/H/C, điểm disabled
                 row[2].text("-")
                 for col_idx, key_suffix in [(3, "t"), (4, "h"), (5, "c")]:
-                    val_str = row[col_idx].text_input("", key=f"{key_suffix}_{subj}", label_visibility="collapsed", placeholder="0")
+                    val_str = row[col_idx].text_input(key_suffix.upper(), key=f"{key_suffix}_{subj}", label_visibility="collapsed", placeholder="0")
                     try:
                         comm_inputs[subj][key_suffix] = int(float(val_str)) if val_str.strip() else 0
                     except (ValueError, TypeError):

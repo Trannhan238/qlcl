@@ -1,5 +1,5 @@
 from typing import List, Dict, Optional
-from app.models.domain import MetricSnapshot
+from app.domain.models import MetricSnapshot
 
 def get_metric_snapshots(snapshots: List[MetricSnapshot], metric_id: str) -> Dict[str, Optional[float]]:
     """

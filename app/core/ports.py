@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
-from app.models.domain import ClassInfo, Metric, MetricSnapshot
+from app.domain.models import ClassInfo, Metric, MetricSnapshot
 
 class AbstractClassRepository(ABC):
     @abstractmethod

@@ -31,32 +31,49 @@ import unicodedata
 import pandas as pd
 from typing import Any, Dict, List, Optional, Tuple
 
-
+from app.infra.file_loader import load_excel
 # ---------------------------------------------------------------------------
 # Helpers - Các hàm tiện ích
 # ---------------------------------------------------------------------------
 
 def _normalize(s: Any) -> str:
     """
-    Mô tả:
-        Chuẩn hoá text: lowercase, loại bỏ dấu tiếng Việt và 'đ', trả về ASCII string.
-
-    Normalization steps:
-        - lowercase
-        - remove accents (đ → d)
-        - trim whitespace
-
-    Input:
-        s (Any): Giá trị đầu vào
-
-    Output:
-        (str): String đã chuẩn hoá, empty string nếu không phải string
+    Chuẩn hoá text: lowercase, loại bỏ dấu tiếng Việt và 'đ', trả về ASCII string.
     """
     if not isinstance(s, str):
         return ""
     s = s.strip().lower().replace("đ", "d")
     nfkd = unicodedata.normalize("NFKD", s)
     return "".join(c for c in nfkd if not unicodedata.combining(c))
+
+
+def build_columns(df: pd.DataFrame, header_rows: int = 4) -> List[str]:
+    """
+    Flatten multi-row header thành single row column names.
+    """
+    header_df = df.iloc[:header_rows].fillna("")
+    
+    # Debug header rows
+    with open("build_columns_debug.log", "a", encoding="utf-8") as f:
+        f.write(f"\n=== build_columns: header_rows={header_rows}, total_cols={len(header_df.columns)} ===\n")
+        for i in range(header_rows):
+            row_vals = header_df.iloc[i].tolist()
+            f.write(f" Row {i}: {row_vals}\n")
+    
+    cols = []
+    for col_idx in range(len(header_df.columns)):
+        col_vals = []
+        for row_idx in range(header_rows):
+            val = header_df.iat[row_idx, col_idx]
+            if val and str(val).strip():
+                col_vals.append(str(val).strip())
+        if col_vals:
+            col_name = " | ".join(col_vals)
+        else:
+            col_name = f"col_{col_idx}"  # fallback
+        cols.append(col_name)
+
+    return cols
 
 
 # Tập hợp các giá trị hợp lệ cho việc đánh giá bucket (T/H/C)
@@ -170,14 +187,27 @@ def is_checked(value: Any) -> bool:
     return False
 
 
+def is_tick(val):
+    if val is None:
+        return False
+
+    if isinstance(val, str):
+        s = val.strip()
+        return s in {"✓", "✔", "ü", "þ", "x", "X", "1", "\uf0fc"}
+
+    if isinstance(val, (int, float)):
+        return val == 1
+
+    return False
+
+
 # ---------------------------------------------------------------------------
 # File reader - Đọc file Excel
 # ---------------------------------------------------------------------------
 
 def read_vnedu_file(file_path: str) -> Dict[str, pd.DataFrame]:
     """
-    Mô tả:
-        Đọc tất cả sheet từ file Excel VNEDU, không dùng header.
+    Đọc tất cả sheet từ file Excel VNEDU, không dùng header.
 
     Input:
         file_path (str): Đường dẫn đến file Excel
@@ -186,18 +216,15 @@ def read_vnedu_file(file_path: str) -> Dict[str, pd.DataFrame]:
         (Dict[str, pd.DataFrame]): Dict ánh xạ sheet_name -> DataFrame không header
 
     Lưu ý:
-        - Fallback sang engine="xlrd" nếu file bị corruption
+        - Sử dụng file_loader để xử lý .xls conversion
     """
-    path = str(file_path)
     try:
-        return pd.read_excel(path, sheet_name=None, header=None)
-    except Exception:
-        # File bị lỗi corruption - thử đọc với xlrd engine
-        return pd.read_excel(
-            path, sheet_name=None, header=None,
-            engine="xlrd",
-            engine_kwargs={"ignore_workbook_corruption": True},
-        )
+        # load_excel với sheet_name=None trả về Dict[str, DataFrame]
+        sheets = load_excel(file_path, sheet_name=None)
+    except Exception as e:
+        raise RuntimeError(f"Failed to read Excel file: {e}")
+
+    return sheets
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +292,7 @@ def _detect_academic_year(df: pd.DataFrame) -> str:
 # ============================================================================
 
 # Các marker được chấp nhận cho checkbox đã checked
-CHECKBOX_MARKERS = {"✓", "✔", "v", "x", "1", "true", "yes"}
+CHECKBOX_MARKERS = {"✓", "✔", "v", "x", "1", "true", "yes", "\uf0fc"}
 
 # Mapping category name -> keywords để nhận diện header column
 CLASSIFICATION_CATEGORIES = {
@@ -399,19 +426,6 @@ def _find_header_region(df: pd.DataFrame) -> Tuple[int, int]:
 
 
 def _count_checked_per_column(df: pd.DataFrame, column_map: Dict[str, Optional[int]], data_start: int) -> Dict[str, int]:
-    """
-    Mô tả:
-        Đếm số checkbox checked cho mỗi category column.
-
-    Input:
-        df (pd.DataFrame): DataFrame chứa dữ liệu
-        column_map (Dict): Ánh xạ category -> column index
-        data_start (int): Dòng bắt đầu dữ liệu (sau header)
-
-    Output:
-        (Dict[str, int]): Ánh xạ category -> số checkbox checked
-                          VD: {"HTXS": 5, "HTT": 12, "HT": 3, "CHT": 0}
-    """
     counts: Dict[str, int] = {cat: 0 for cat in column_map}
 
     for cat_name, col_idx in column_map.items():
@@ -419,7 +433,7 @@ def _count_checked_per_column(df: pd.DataFrame, column_map: Dict[str, Optional[i
             continue
         for row_idx in range(data_start, len(df)):
             cell = df.iloc[row_idx, col_idx]
-            if is_checked(cell):
+            if is_tick(cell):  # ✅ FIX: dùng is_tick thay vì is_checked
                 counts[cat_name] += 1
 
     return counts
@@ -451,110 +465,190 @@ def _validate_counts(counts: Dict[str, int], actual_student_count: int) -> bool:
 # KQGD Section Parsing - Đánh giá KQGD
 # ============================================================================
 
+def read_vertical_text(df: pd.DataFrame, col: int, start_row: int, max_rows: int = 10) -> str:
+    """
+    Join characters vertically from a column into a full string.
+
+    Dùng cho header dạng dọc (vertical text) trong file Excel VNEDU,
+    nơi mỗi ký tự nằm ở một row riêng.
+
+    Args:
+        df: DataFrame từ Excel
+        col: Column index
+        start_row: Row bắt đầu đọc
+        max_rows: Số row tối đa đọc
+
+    Returns:
+        Chuỗi ký tự đã join (không khoảng trắng)
+    """
+    chars = []
+    for r in range(start_row, min(start_row + max_rows, len(df))):
+        val = df.iloc[r, col] if col < len(df.columns) else None
+        if pd.isna(val):
+            continue
+        s = str(val).strip()
+        if s:
+            chars.append(s)
+    return "".join(chars)
+
+
 def _parse_kqgd_summary(
     df: pd.DataFrame,
     class_name: str,
     academic_year: str,
 ) -> Optional[Dict[str, Any]]:
-    """
-    Mô tả:
-        Phân tích và đếm số lượng HTXS/HTT/HT/CHT trong phần Đánh giá KQGD.
 
-    KQGD Rules (từ contracts.md):
-        - Parse KQGD ONLY IF snapshot_type IN {"baseline", "actual_hk2"}
-        - total_students_from_KQGD MUST be > 0
-        - Sum(HTXS + HTT + HT + CHT) == total_students_from_KQGD
-
-    Improved: Use keyword matching for header detection.
-
-    Input:
-        df (pd.DataFrame): DataFrame từ sheet
-        class_name (str): Tên lớp
-        academic_year (str): Năm học
-
-    Output:
-        (Dict|None): Dict chứa HTXS/HTT/HT/CHT/total_students hoặc None
-
-    Raises:
-        ValueError: Nếu total == 0 hoặc sum mismatch
-    """
-    # Tìm phần header có chứa "Đánh giá KQGD"
+    # 🔥 FIX 1: detect "kqgd" thay vì string dài
     section_start = None
-    max_scan = min(60, len(df))
-    for i in range(max_scan):
+    for i in range(min(60, len(df))):
         for cell in df.iloc[i]:
-            if isinstance(cell, str) and "đánh giá kqgd" in _normalize(cell):
+            if isinstance(cell, str) and "kqgd" in _normalize(cell):
                 section_start = i
                 break
         if section_start is not None:
             break
+
     if section_start is None:
         return None
 
-    # Tìm cột cho HTXS/HTT/HT/CHT trong header ngay sau section_start
-    # Sử dụng keyword matching thay vì exact string
-    header_row = None
+    # Detect categories - try single cell first, then vertical text fallback
+    # Priority order: HTXS (longest keyword) → HTT → CHT → HT (shortest keyword)
+    # This avoids "hoan thanh" matching HTXS/HTT/CHT before HT
     category_map: Dict[str, int] = {}
+    header_end = None
+    matched_cols = set()
+
     for r in range(section_start + 1, min(section_start + 12, len(df))):
-        row = df.iloc[r]
-        for c, cell in enumerate(row):
-            if not isinstance(cell, str):
+        for c in range(len(df.columns)):
+            if len(category_map) >= 4:
+                break
+            if c in matched_cols:
                 continue
-            # Keyword matching
-            if _matches_category(cell, CLASSIFICATION_CATEGORIES.get("HTXS", [])):
-                category_map["HTXS"] = c
-            elif _matches_category(cell, CLASSIFICATION_CATEGORIES.get("HTT", [])):
-                category_map["HTT"] = c
-            elif _matches_category(cell, CLASSIFICATION_CATEGORIES.get("HT", [])):
-                category_map["HT"] = c
-            elif _matches_category(cell, CLASSIFICATION_CATEGORIES.get("CHT", [])):
-                category_map["CHT"] = c
+
+            cell = df.iloc[r, c]
+            if pd.isna(cell):
+                continue
+
+            cell_str = str(cell).strip()
+            cell_norm = _normalize(cell_str)
+
+            # Skip tick marks - these are data, not headers
+            if cell_str in ("\uf0fc", "✓", "✔", "x", "1"):
+                continue
+
+            # Try exact match first (most specific)
+            matched_cat = None
+            for cat_name in ["HTXS", "HTT", "CHT", "HT"]:
+                if cat_name in category_map:
+                    continue
+                for kw in CLASSIFICATION_CATEGORIES[cat_name]:
+                    kw_norm = _normalize(kw)
+                    if cell_norm == kw_norm:
+                        matched_cat = cat_name
+                        break
+                if matched_cat:
+                    break
+
+            # Try substring match if no exact match
+            if not matched_cat:
+                for cat_name in ["HTXS", "HTT", "CHT", "HT"]:
+                    if cat_name in category_map:
+                        continue
+                    for kw in CLASSIFICATION_CATEGORIES[cat_name]:
+                        kw_norm = _normalize(kw)
+                        if kw_norm in cell_norm:
+                            matched_cat = cat_name
+                            break
+                    if matched_cat:
+                        break
+
+            if matched_cat:
+                category_map[matched_cat] = c
+                matched_cols.add(c)
+                header_end = max(header_end or 0, r)
+
         if len(category_map) >= 4:
-            header_row = r
             break
-    if not category_map or len(category_map) < 4:
+
+    # Fallback: try vertical text if single cell didn't find all 4
+    if len(category_map) < 4:
+        for c in range(len(df.columns)):
+            if len(category_map) >= 4:
+                break
+            if c in matched_cols:
+                continue
+            vertical_text = read_vertical_text(df, c, section_start + 1, max_rows=8)
+            if not vertical_text:
+                continue
+            text_norm = _normalize(vertical_text)
+
+            if text_norm in ("\uf0fc", "✓", "✔", "x", "1"):
+                continue
+
+            matched_cat = None
+            for cat_name in ["HTXS", "HTT", "CHT", "HT"]:
+                if cat_name in category_map:
+                    continue
+                for kw in CLASSIFICATION_CATEGORIES[cat_name]:
+                    kw_norm = _normalize(kw)
+                    if kw_norm in text_norm:
+                        matched_cat = cat_name
+                        break
+                if matched_cat:
+                    break
+
+            if matched_cat:
+                category_map[matched_cat] = c
+                matched_cols.add(c)
+                for rv in range(section_start + 1, min(section_start + 10, len(df))):
+                    val = df.iloc[rv, c] if c < len(df.columns) else None
+                    if pd.notna(val) and str(val).strip():
+                        header_end = max(header_end or 0, rv)
+
+    if len(category_map) < 4:
         return None
 
-    data_start = (header_row or section_start) + 1
+    data_start = (header_end or section_start) + 1
+
     HTXS = HTT = HT = CHT = 0
     total_students = 0
+
+    # 🔥 FIX 3: detect đúng học sinh
+    def _is_student(val):
+        if pd.isna(val):
+            return False
+        return str(val).strip().isdigit()
 
     for row_idx in range(data_start, len(df)):
         row = df.iloc[row_idx]
         first = row[0] if len(row) > 0 else None
-        if pd.isna(first) or (isinstance(first, str) and first.strip() == ""):
+
+        if not _is_student(first):
             continue
+
         total_students += 1
 
-        if "HTXS" in category_map:
-            col = category_map["HTXS"]
-            if is_checked(row.iloc[col]):
-                HTXS += 1
-        if "HTT" in category_map:
-            col = category_map["HTT"]
-            if is_checked(row.iloc[col]):
-                HTT += 1
-        if "HT" in category_map:
-            col = category_map["HT"]
-            if is_checked(row.iloc[col]):
-                HT += 1
-        if "CHT" in category_map:
-            col = category_map["CHT"]
-            if is_checked(row.iloc[col]):
-                CHT += 1
+        counted = False
 
-    # Zero-data protection: total_students_from_KQGD MUST be > 0
+        if is_tick(row.iloc[category_map["HTXS"]]):
+            HTXS += 1
+            counted = True
+        elif is_tick(row.iloc[category_map["HTT"]]):
+            HTT += 1
+            counted = True
+        elif is_tick(row.iloc[category_map["HT"]]):
+            HT += 1
+            counted = True
+        elif is_tick(row.iloc[category_map["CHT"]]):
+            CHT += 1
+
     if total_students == 0:
-        raise ValueError(
-            f"KQGD: empty data in class {class_name}, year {academic_year}"
-        )
+        raise ValueError(f"KQGD empty: {class_name} {academic_year}")
 
-    # Validate sum
-    kqgd_sum = HTXS + HTT + HT + CHT
-    if kqgd_sum != total_students:
+    if HTXS + HTT + HT + CHT != total_students:
         raise ValueError(
-            f"KQGD: HTXS+HTT+HT+CHT ({kqgd_sum}) != total_students ({total_students}) "
-            f"in class {class_name}, year {academic_year}"
+            f"KQGD mismatch: {HTXS+HTT+HT+CHT} != {total_students} "
+            f"({class_name} {academic_year})"
         )
 
     return {
@@ -602,7 +696,8 @@ def _parse_class_summary(
 
     if not column_map:
         _log_debug("No classification columns detected in header region")
-        return None
+        # Still try KQGD even if no classification columns found
+        column_map = {}
 
     _log_debug("Detected category columns:")
     for cat, col in sorted(column_map.items(), key=lambda x: x[1] or 0):
@@ -701,56 +796,44 @@ def _detect_subject_type(
     next_header_norm: Optional[str],
 ) -> Dict[str, Any]:
     """
-    Mô tả:
-        Xác định loại môn học dựa trên column grouping.
+    Xác định loại môn học dựa trên column grouping.
 
-    Fix: If headers do NOT match → treat as qualitative (don't raise error).
+    Rules:
+        - Two adjacent columns with same subject header → scored (2 cols)
+        - Single column or headers don't match → qualitative (1 col)
 
-    Rules (từ contracts.md):
-        - Two adjacent columns with same subject header → scored subject (2 columns)
-        - Single column OR headers don't match → qualitative subject (1 column)
-        - Scored subject = exactly 2 columns
-        - Qualitative subject = exactly 1 column
-
-    Input:
-        current_col (int): Column index hiện tại
-        next_col (int|None): Column index kế tiếp
-        current_header_norm (str): Normalized header của column hiện tại
-        next_header_norm (str|None): Normalized header của column kế tiếp
-
-    Output:
-        (Dict): {
+    Returns:
+        {
             "subject_type": "scored" | "qualitative",
             "level_col": int,
             "score_col": int | None,
-            "columns_used": [int, ...]
+            "columns": [int, ...]   # <-- dùng "columns" để thống nhất với validate
         }
     """
     if next_col is not None and next_header_norm is not None:
-        # Kiểm tra headers có match không
         if current_header_norm == next_header_norm:
-            # Headers match -> scored subject (2 columns)
+            # Scored: 2 columns
             return {
                 "subject_type": "scored",
                 "level_col": current_col,
                 "score_col": next_col,
-                "columns_used": [current_col, next_col],
+                "columns": [current_col, next_col],  # ← rename
             }
         else:
-            # Headers don't match -> qualitative (1 column only)
+            # Qualitative: 1 column
             return {
                 "subject_type": "qualitative",
                 "level_col": current_col,
                 "score_col": None,
-                "columns_used": [current_col],
+                "columns": [current_col],  # ← rename
             }
 
-    # No next column or no next header -> qualitative (1 column)
+    # Qualitative (no next)
     return {
         "subject_type": "qualitative",
         "level_col": current_col,
         "score_col": None,
-        "columns_used": [current_col],
+        "columns": [current_col],  # ← rename
     }
 
 
@@ -760,26 +843,12 @@ def _validate_subject_columns(
     academic_year: str,
 ) -> None:
     """
-    Mô tả:
-        Validate rằng mỗi subject có đúng column count.
-
-    Rules (từ contracts.md):
-        - Parser MUST validate that:
-          - Scored subject = exactly 2 columns
-          - Qualitative subject = exactly 1 column
-        - Any deviation -> raise ValueError
-
-    Input:
-        subject_entries (List[Dict]): Danh sách subject entries đã detect
-        class_name (str): Tên lớp (cho error message)
-        academic_year (str): Năm học (cho error message)
-
-    Raises:
-        ValueError: Nếu column count không đúng
+    Validate rằng mỗi subject có đúng column count.
     """
     for entry in subject_entries:
         subject_type = entry.get("subject_type")
-        columns_used = entry.get("columns_used", [])
+        # Use "columns" key (consistent with _detect_subject_type and grouping)
+        columns_used = entry.get("columns", [])
 
         if subject_type == "scored":
             if len(columns_used) != 2:
@@ -800,8 +869,7 @@ def _validate_subject_columns(
 
 def _build_column_plan(df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[int]]:
     """
-    Mô tả:
-        Nhận diện các subject columns dựa trên structural markers trong header.
+    Nhận diện các subject columns dựa trên structural markers trong header.
 
     Column Grouping Detection (từ contracts.md):
         - Parser MUST detect subject type by STRUCTURE
@@ -815,7 +883,7 @@ def _build_column_plan(df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[int
         - trim whitespace
 
     Input:
-        df (pd.DataFrame): DataFrame từ Excel
+        df (pd.DataFrame): DataFrame từ Excel, đã có flattened column names.
 
     Output:
         (Tuple[List[Dict], List[int]]):
@@ -825,13 +893,27 @@ def _build_column_plan(df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[int
     if len(df) < 10:
         return [], []
 
-    h_main = df.iloc[6].ffill()
-    h_sub = df.iloc[7]
-    h_metrics = df.iloc[8]
+    # Đọc raw header rows (sau khi flatten columns, nhưng rows vẫn giữ nguyên)
+    # Row 6 (index 6) = header row 7 trong Excel (main subject)
+    # Row 7 (index 7) = header row 8 (sub hoặc rỗng)
+    # Row 8 (index 8) = header row 9 (metric labels: Mức đạt được, Điểm KT)
+    # Row 5 (index 5) = group header: "Môn học và hoạt động giáo dục", "Năng lực cốt lõi", etc.
+    # ffill để propagate group name qua các column merged cells
+    h_group = df.iloc[5].ffill() if len(df) > 5 else pd.Series()
+    h_main = df.iloc[6].ffill() if len(df) > 6 else pd.Series()
+    h_sub = df.iloc[7] if len(df) > 7 else pd.Series()
+    h_metrics = df.iloc[8] if len(df) > 8 else pd.Series()
 
     # Thu thập tất cả potential columns
     raw_entries = []
     for col in range(len(df.columns)):
+
+        # FILTER: chỉ parse section "Môn học và hoạt động giáo dục"
+        group_raw = str(h_group.iloc[col]).strip() if pd.notna(h_group.iloc[col]) else ""
+        group_norm = _normalize(group_raw)
+        if group_norm and "mon hoc" not in group_norm:
+            continue
+
         main_name = str(h_main.iloc[col]).strip() if pd.notna(h_main.iloc[col]) else ""
         sub_name = str(h_sub.iloc[col]).strip() if pd.notna(h_sub.iloc[col]) else ""
         metric_raw = str(h_metrics.iloc[col]).strip() if pd.notna(h_metrics.iloc[col]) else ""
@@ -842,8 +924,12 @@ def _build_column_plan(df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[int
         is_level = "muc dat duoc" in metric_norm or "muc do" in metric_norm
         is_score = "diem" in metric_norm
 
+        # FALLBACK: Nếu không có metric nhưng có subject name → coi là qualitative (level)
         if not (is_level or is_score):
-            continue
+            if main_name:
+                is_level = True
+            else:
+                continue  # bỏ column hoàn toàn nếu không có subject name
 
         # Xây dựng subject name từ main + sub
         full_subject = main_name
@@ -861,106 +947,67 @@ def _build_column_plan(df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[int
             "normalized_header": normalized_header,
         })
 
-    # Group adjacent columns by normalized header và detect subject type
+    # Group columns by subject header và detect subject type
+    # Strategy: collect all columns per subject, then determine type
+    # "scored" = subject has at least one "score" type column
+    # "qualitative" = subject has only "level" type columns
     subject_entries = []
     processed_cols = set()
 
-    for i, entry in enumerate(raw_entries):
-        if entry["col"] in processed_cols:
-            continue
+    # Bước 1: Group entries by normalized_header
+    groups: Dict[str, List[Dict[str, Any]]] = {}
+    for entry in raw_entries:
+        key = entry["normalized_header"]
+        if key not in groups:
+            groups[key] = []
+        groups[key].append(entry)
 
-        current_col = entry["col"]
-        current_type = entry["type"]
-        current_header_norm = entry["normalized_header"]
-        current_subject = entry["subject"]
+    # Bước 2: For each group, determine subject type và build entry
+    for header_key, entries in groups.items():
+        cols = [e["col"] for e in entries]
+        types = [e["type"] for e in entries]
+        subject = entries[0]["subject"]
 
-        # Xác định loại subject dựa trên column grouping
-        if current_type == "level" and i + 1 < len(raw_entries):
-            next_entry = raw_entries[i + 1]
-            next_col = next_entry["col"]
-            next_type = next_entry["type"]
-            next_header_norm = next_entry["normalized_header"]
+        # Có column type="score" → scored
+        has_score = "score" in types
 
-            # Kiểm tra có phải scored subject không:
-            # - Level column followed by Score column
-            # - Headers match sau normalization
-            if next_type == "score" and next_col == current_col + 1 and current_header_norm == next_header_norm:
-                # Scored subject: 2 columns
-                subject_info = _detect_subject_type(
-                    current_col=current_col,
-                    next_col=next_col,
-                    current_header_norm=current_header_norm,
-                    next_header_norm=next_header_norm,
-                )
-                subject_info["subject"] = current_subject
-                subject_entries.append(subject_info)
-                processed_cols.add(current_col)
-                processed_cols.add(next_col)
-                continue
-
-        # Qualitative subject: 1 column (level only, no adjacent score column matching)
-        if current_type == "level":
-            subject_info = _detect_subject_type(
-                current_col=current_col,
-                next_col=None,
-                current_header_norm=current_header_norm,
-                next_header_norm=None,
-            )
-            subject_info["subject"] = current_subject
-            subject_entries.append(subject_info)
-            processed_cols.add(current_col)
-        elif current_type == "score":
-            # Score column không có level pair -> qualitative (1 column)
-            subject_info = _detect_subject_type(
-                current_col=current_col,
-                next_col=None,
-                current_header_norm=current_header_norm,
-                next_header_norm=None,
-            )
-            subject_info["subject"] = current_subject
-            subject_entries.append(subject_info)
-            processed_cols.add(current_col)
-
-    # Deduplicate by normalized subject name to avoid duplicates
-    if not subject_entries:
-        return subject_entries, list(processed_cols)
-
-    merged: Dict[str, Dict[str, Any]] = {}
-    for entry in subject_entries:
-        subj = entry.get("subject", "") or ""
-        norm = _normalize(subj)
-        if not norm:
-            # Fallback to original subject if normalization yields empty
-            norm = subj
-        if norm not in merged:
-            merged[norm] = entry
+        if has_score:
+            # Scored: find level_col (first "level") và score_col (first "score")
+            level_col = next((e["col"] for e in entries if e["type"] == "level"), None)
+            score_col = next((e["col"] for e in entries if e["type"] == "score"), None)
+            subject_entries.append({
+                "subject": subject,
+                "subject_type": "scored",
+                "columns": sorted(cols),
+                "level_col": level_col,
+                "score_col": score_col,
+            })
         else:
-            prev = merged[norm]
-            # Determine merged type: if either is scored -> scored
-            t1 = prev.get("subject_type")
-            t2 = entry.get("subject_type")
-            merged_type = "scored" if (t1 == "scored" or t2 == "scored") else "qualitative"
-            prev["subject_type"] = merged_type
-            # Merge columns_used
-            cols1 = set(prev.get("columns_used", []))
-            cols2 = set(entry.get("columns_used", []))
-            merged_cols = sorted(list(cols1.union(cols2)))
-            prev["columns_used"] = merged_cols
-            # Merge optional fields if present
-            if not prev.get("level_col") and entry.get("level_col"):
-                prev["level_col"] = entry["level_col"]
-            if not prev.get("score_col") and entry.get("score_col"):
-                prev["score_col"] = entry["score_col"]
-            # Prefer existing subject/name; keep the first subject string
-            prev["subject"] = prev.get("subject")
-    final_entries = list(merged.values())
-    return final_entries, list(processed_cols)
+            # Qualitative: only level columns
+            level_col = entries[0]["col"]
+            subject_entries.append({
+                "subject": subject,
+                "subject_type": "qualitative",
+                "columns": sorted(cols),
+                "level_col": level_col,
+                "score_col": None,
+            })
+
+        processed_cols.update(cols)
+
+    # Debug: log subject_entries
+    with open("build_entries_debug.log", "a", encoding="utf-8") as f:
+        f.write(f"\n=== subject_entries ({len(subject_entries)}) ===\n")
+        for e in subject_entries:
+            cols = e.get("columns", [])
+            f.write(f" subject='{e['subject']}', type={e['subject_type']}, cols={cols}\n")
+
+    return subject_entries, list(processed_cols)
 
 
 def parse_sheet(df: pd.DataFrame, class_name: str, academic_year: str) -> List[Dict[str, Any]]:
     """
-    Mô tả:
-        Parse single sheet's DataFrame - trích xuất điểm và xếp loại T/H/C theo môn học.
+    Parse single sheet's DataFrame - trích xuất điểm và xếp loại T/H/C theo môn học.
 
     Subject Type Rules (từ contracts.md):
         - Scored subjects:
@@ -997,6 +1044,25 @@ def parse_sheet(df: pd.DataFrame, class_name: str, academic_year: str) -> List[D
     Raises:
         ValueError: Nếu subject type validation fail hoặc score validation fail
     """
+    # ==== FLATTEN HEADER ====
+    # Header rows: 5-8 (index 4-7) → 4 rows
+    # Data starts: row 9 (index 8)
+    if len(df) < 9:
+        return []  # Không đủ data
+
+    # Build flattened column names từ 4 dòng header
+    new_columns = build_columns(df.iloc[4:8], header_rows=4)
+    
+    # Log to file để tránh Unicode issues
+    with open("debug_flatten.log", "a", encoding="utf-8") as f:
+        f.write(f"\n=== parse_sheet: built {len(new_columns)} columns ===\n")
+        for i, col in enumerate(new_columns[:30]):
+            f.write(f"{i}: {col}\n")
+    
+    df = df.copy()
+    df.columns = new_columns
+    # =========================
+
     subject_entries, _ = _build_column_plan(df)
     if not subject_entries:
         return []
@@ -1004,10 +1070,11 @@ def parse_sheet(df: pd.DataFrame, class_name: str, academic_year: str) -> List[D
     # Validate column counts
     _validate_subject_columns(subject_entries, class_name, academic_year)
 
-    data_start = 9  # Row 10 - dòng bắt đầu dữ liệu học sinh
+    data_start = 9  # Row 10 - dòng bắt đầu dữ liệu học sinh (sau 9 header rows)
 
     results = []
     data_rows = df.iloc[data_start:]
+
 
     # Filter out empty rows (summary rows thường có nan ở col 0)
     data_rows = data_rows[data_rows.iloc[:, 0].apply(lambda x: str(x).isdigit())]
@@ -1022,54 +1089,60 @@ def parse_sheet(df: pd.DataFrame, class_name: str, academic_year: str) -> List[D
         subject = entry["subject"]
 
         # Đếm số học sinh mỗi bucket (T/H/C)
+        # FIX: Duyệt TẤT CẢ columns_used, đếm mỗi học sinh 1 lần rồi BREAK
         T = H = C = 0
-        for val in data_rows.iloc[:, level_col]:
-            bucket = _eval_bucket(val)
-            if bucket == "T":
-                T += 1
-            elif bucket == "H":
-                H += 1
-            elif bucket == "C":
-                C += 1
+        columns_used = entry.get("columns", [level_col])
+        for _, row in data_rows.iterrows():
+            for col in columns_used:
+                bucket = _eval_bucket(row.iloc[col])
+                if bucket is not None:
+                    if bucket == "T":
+                        T += 1
+                    elif bucket == "H":
+                        H += 1
+                    elif bucket == "C":
+                        C += 1
+                    break  # ĐÃ ĐẾM → SKIP columns khác
 
         # Tính điểm trung bình (chỉ scored subjects)
         avg_score = None
         if subject_type == "scored":
             if score_col is None:
-                raise ValueError(
-                    f"Scored subject '{subject}' missing score_col "
-                    f"(class {class_name}, year {academic_year})"
-                )
-            # Score column validation: kiểm tra non-numeric values
-            scores_series = pd.to_numeric(data_rows.iloc[:, score_col], errors="coerce")
-            # Filter out NaN to check for actual non-numeric values
-            valid_scores = scores_series.dropna()
-            
-            # Nếu có giá trị không phải số (không phải NaN thuần túy)
-            # errors="coerce" đã convert non-numeric thành NaN
-            # Kiểm tra xem có NaN nào không phải từ empty cells
-            if len(valid_scores) < len(data_rows):
-                # Có thể có empty cells - kiểm tra xem có actual non-numeric values không
-                original_vals = data_rows.iloc[:, score_col]
-                non_numeric_mask = pd.to_numeric(original_vals, errors="coerce").isna()
-                original_not_na = ~original_vals.isna()
-                actual_non_numeric = (non_numeric_mask & original_not_na).sum()
-                if actual_non_numeric > 0:
+                # Downgrade: không có score_col → qualitative
+                subject_type = "qualitative"
+            else:
+                # Score column validation: kiểm tra non-numeric values
+                scores_series = pd.to_numeric(data_rows.iloc[:, score_col], errors="coerce")
+                # Filter out NaN to check for actual non-numeric values
+                valid_scores = scores_series.dropna()
+
+                # Nếu có giá trị không phải số (không phải NaN thuần túy)
+                # errors="coerce" đã convert non-numeric thành NaN
+                # Kiểm tra xem có NaN nào không phải từ empty cells
+                if len(valid_scores) < len(data_rows):
+                    # Có thể có empty cells - kiểm tra xem có actual non-numeric values không
+                    original_vals = data_rows.iloc[:, score_col]
+                    non_numeric_mask = pd.to_numeric(original_vals, errors="coerce").isna()
+                    original_not_na = ~original_vals.isna()
+                    actual_non_numeric = (non_numeric_mask & original_not_na).sum()
+                    if actual_non_numeric > 0:
+                        raise ValueError(
+                            f"Non-numeric values found in score column for subject '{subject}' "
+                            f"(class {class_name}, year {academic_year})"
+                        )
+
+                if len(valid_scores) > 0:
+                    avg_score = round(float(valid_scores.mean()), 2)
+
+                # Fallback: scored nhưng không có avg_score → downgrade qualitative
+                if avg_score is None:
+                    subject_type = "qualitative"
+                elif avg_score < 0 or avg_score > 10:
                     raise ValueError(
-                        f"Non-numeric values found in score column for subject '{subject}' "
+                        f"avg_score out of range [0, 10]: {avg_score} "
+                        f"for subject '{subject}' "
                         f"(class {class_name}, year {academic_year})"
                     )
-            
-            if len(valid_scores) > 0:
-                avg_score = round(float(valid_scores.mean()), 2)
-
-            # avg_score validation: MUST be in range [0, 10]
-            if avg_score is not None and (avg_score < 0 or avg_score > 10):
-                raise ValueError(
-                    f"avg_score out of range [0, 10]: {avg_score} "
-                    f"for subject '{subject}' "
-                    f"(class {class_name}, year {academic_year})"
-                )
 
         elif subject_type == "qualitative":
             # Qualitative: avg_score MUST be NULL
