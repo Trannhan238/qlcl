@@ -28,7 +28,7 @@ import sys
 import os
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Dict, Any, Tuple
 
 import sqlite3
 import streamlit as st
@@ -39,7 +39,7 @@ root_dir = Path(__file__).parent.parent
 if str(root_dir) not in sys.path:
     sys.path.insert(0, str(root_dir))
 
-from app.infra.vnedu_parser import parse_vnedu_file_with_class_summary, normalize_year  # noqa: E402
+from app.infra.vnedu_parser import parse_vnedu_file_with_class_summary, normalize_year, _normalize  # noqa: E402
 from app.core.compare import compare_metric, compare_with_targets, compute_thc_percentages  # noqa: E402
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -653,6 +653,7 @@ def process_files(files, snapshot_type, score_delta):
 
     all_subjects = []
     all_class_summary = []
+    targets = []  # temporary targets generated from baseline (no shifting)
     errors = []
 
     # Parse từng file
@@ -665,10 +666,21 @@ def process_files(files, snapshot_type, score_delta):
         try:
             with open(temp_path, "wb") as f:
                 f.write(file.getbuffer())
-            # Parse file Excel
-            subjects, class_data = parse_vnedu_file_with_class_summary(str(temp_path))
+            # Parse file Excel - KQGD gate enforcement
+            allow_kqgd = snapshot_type in {"baseline", "actual_hk2"}
+            subjects, class_data = parse_vnedu_file_with_class_summary(
+                str(temp_path), allow_kqgd=allow_kqgd
+            )
+            # Normalize subject names will be handled later, before DB insert (uniformly for all snapshots)
             all_subjects.extend(subjects)
-            all_class_summary.extend(class_data)
+            if allow_kqgd:
+                all_class_summary.extend(class_data)
+            # Generate targets from baseline if requested (no shifting)
+            if snapshot_type == "baseline" and score_delta is not None:
+                for r in subjects:
+                    tgt = generate_target_from_baseline(r, score_delta)
+                    if tgt:
+                        targets.append(tgt)
         except Exception as e:
             errors.append(f"{file.name}: {e}")
         finally:
@@ -676,27 +688,59 @@ def process_files(files, snapshot_type, score_delta):
             if temp_path.exists():
                 os.remove(temp_path)
 
-    # Transform cho baseline: shift grade và tạo target
-    if snapshot_type == "baseline":
-        transformed = []
-        targets = []
+    # Deduplicate by normalized subject name across same (academic_year, class, snapshot_type)
+    deduped_subjects: List[Dict[str, Any]] = []
+    if all_subjects:
+        group: Dict[Tuple, Dict[str, Any]] = {}
         for r in all_subjects:
-            # Transform lớp: 1A -> 2A, 2A -> 3A
-            new_class = shift_class_name(r["class_name"])
-            # Transform năm: 2024-2025 -> 2025-2026
-            new_year = increment_academic_year(r["academic_year"])
-            if new_class and new_year:
-                r["class_name"] = new_class
-                r["academic_year_shifted"] = new_year
-                r["class_shifted"] = new_class
-                transformed.append(r)
-                # Tạo target nếu có score_delta
-                if score_delta is not None:
-                    target = generate_target_from_baseline(r, score_delta)
-                    if target:
-                        targets.append(target)
-        # Baseline records + target records
-        all_subjects = transformed + targets
+            acc_year = r.get("academic_year")
+            cls = r.get("class_name")
+            snap = r.get("snapshot_type", snapshot_type)
+            subj = r.get("subject", "")
+            norm = _normalize(subj)
+            norm = " ".join(norm.split()) if norm else subj
+            key = (acc_year, cls, snap, norm)
+            if key not in group:
+                group[key] = {
+                    "academic_year": acc_year,
+                    "class_name": cls,
+                    "subject": norm,
+                    "snapshot_type": snap,
+                    "T": 0,
+                    "H": 0,
+                    "C": 0,
+                    "avg_score_sum": 0.0,
+                    "avg_count": 0,
+                    "student_count": r.get("student_count"),
+                }
+            g = group[key]
+            g["T"] += int(r.get("T") or 0)
+            g["H"] += int(r.get("H") or 0)
+            g["C"] += int(r.get("C") or 0)
+            if r.get("avg_score") is not None:
+                g["avg_score_sum"] += float(r["avg_score"])
+                g["avg_count"] += 1
+            sc = r.get("student_count")
+            if sc is not None:
+                if g["student_count"] is None or sc > g["student_count"]:
+                    g["student_count"] = sc
+
+        for gr in group.values():
+            avg_final = None
+            if gr["avg_count"] > 0:
+                avg_final = round(gr["avg_score_sum"] / gr["avg_count"], 2)
+            deduped_subjects.append({
+                "academic_year": gr["academic_year"],
+                "class_name": gr["class_name"],
+                "subject": gr["subject"],
+                "snapshot_type": gr["snapshot_type"],
+                "avg_score": avg_final,
+                "student_count": gr["student_count"],
+                "T": gr["T"],
+                "H": gr["H"],
+                "C": gr["C"],
+            })
+    all_subjects = deduped_subjects
 
     # Lưu vào database
     saved_count = 0
@@ -704,12 +748,15 @@ def process_files(files, snapshot_type, score_delta):
         with get_conn() as conn:
             conn.execute("BEGIN TRANSACTION")
             for r in all_subjects:
-                upsert_subject(conn, r["academic_year"], r["class_name"], r["subject"], snapshot_type,
+                # Do not normalize here; normalization happens in grouping step
+                snapshot_type_to_store = r.get("snapshot_type", snapshot_type)
+                upsert_subject(conn, r["academic_year"], r["class_name"], r["subject"], snapshot_type_to_store,
                                r.get("avg_score"), r.get("student_count"), r["T"], r["H"], r["C"])
                 saved_count += 1
             for cs in all_class_summary:
+                snapshot_type_to_store_cs = cs.get("snapshot_type", snapshot_type)
                 upsert_class_summary(conn, cs.get("academic_year", ""), cs.get("class_name", ""),
-                                     snapshot_type, cs.get("HTXS", 0), cs.get("HTT", 0),
+                                     snapshot_type_to_store_cs, cs.get("HTXS", 0), cs.get("HTT", 0),
                                      cs.get("HT", 0), cs.get("CHT", 0))
             conn.execute("COMMIT")
     except Exception as e:
