@@ -1868,3 +1868,1499 @@ năm sinh
 27: col_27
 28: col_28
 29: col_29
+
+=== parse_sheet: built 37 columns ===
+0: Lớp: 1A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Nghệ thuật | Âm nhạc
+13: Mĩ thuật
+14: Hoạt động trải nghiệm
+15: Giáo dục thể chất
+16: Năng lực cốt lõi | Năng lực chung
+17: col_17
+18: col_18
+19: Năng lực đặc thù
+20: col_20
+21: col_21
+22: col_22
+23: col_23
+24: Phẩm chất chủ yếu
+25: col_25
+26: col_26
+27: col_27
+28: col_28
+29: Đánh giá KQGD
+
+=== parse_sheet: built 37 columns ===
+0: Lớp: 1B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Nghệ thuật | Âm nhạc
+13: Mĩ thuật
+14: Hoạt động trải nghiệm
+15: Giáo dục thể chất
+16: Năng lực cốt lõi | Năng lực chung
+17: col_17
+18: col_18
+19: Năng lực đặc thù
+20: col_20
+21: col_21
+22: col_22
+23: col_23
+24: Phẩm chất chủ yếu
+25: col_25
+26: col_26
+27: col_27
+28: col_28
+29: Đánh giá KQGD
+
+=== parse_sheet: built 32 columns ===
+0: Lớp: 2A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: Tin học
+14: Nghệ thuật | Âm nhạc
+15: Mĩ thuật
+16: Hoạt động trải nghiệm
+17: Giáo dục thể chất
+18: Năng lực cốt lõi | Năng lực chung
+19: col_19
+20: col_20
+21: Năng lực đặc thù
+22: col_22
+23: col_23
+24: col_24
+25: col_25
+26: Phẩm chất chủ yếu
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 32 columns ===
+0: Lớp: 2B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: Tin học
+14: Nghệ thuật | Âm nhạc
+15: Mĩ thuật
+16: Hoạt động trải nghiệm
+17: Giáo dục thể chất
+18: Năng lực cốt lõi | Năng lực chung
+19: col_19
+20: col_20
+21: Năng lực đặc thù
+22: col_22
+23: col_23
+24: col_24
+25: col_25
+26: Phẩm chất chủ yếu
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 39 columns ===
+0: Lớp: 2A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: Tin học
+14: Nghệ thuật | Âm nhạc
+15: Mĩ thuật
+16: Hoạt động trải nghiệm
+17: Giáo dục thể chất
+18: Năng lực cốt lõi | Năng lực chung
+19: col_19
+20: col_20
+21: Năng lực đặc thù
+22: col_22
+23: col_23
+24: col_24
+25: col_25
+26: Phẩm chất chủ yếu
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 39 columns ===
+0: Lớp: 2B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: Tin học
+14: Nghệ thuật | Âm nhạc
+15: Mĩ thuật
+16: Hoạt động trải nghiệm
+17: Giáo dục thể chất
+18: Năng lực cốt lõi | Năng lực chung
+19: col_19
+20: col_20
+21: Năng lực đặc thù
+22: col_22
+23: col_23
+24: col_24
+25: col_25
+26: Phẩm chất chủ yếu
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 37 columns ===
+0: Lớp: 1A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Nghệ thuật | Âm nhạc
+13: Mĩ thuật
+14: Hoạt động trải nghiệm
+15: Giáo dục thể chất
+16: Năng lực cốt lõi | Năng lực chung
+17: col_17
+18: col_18
+19: Năng lực đặc thù
+20: col_20
+21: col_21
+22: col_22
+23: col_23
+24: Phẩm chất chủ yếu
+25: col_25
+26: col_26
+27: col_27
+28: col_28
+29: Đánh giá KQGD
+
+=== parse_sheet: built 37 columns ===
+0: Lớp: 1B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Nghệ thuật | Âm nhạc
+13: Mĩ thuật
+14: Hoạt động trải nghiệm
+15: Giáo dục thể chất
+16: Năng lực cốt lõi | Năng lực chung
+17: col_17
+18: col_18
+19: Năng lực đặc thù
+20: col_20
+21: col_21
+22: col_22
+23: col_23
+24: Phẩm chất chủ yếu
+25: col_25
+26: col_26
+27: col_27
+28: col_28
+29: Đánh giá KQGD
+
+=== parse_sheet: built 37 columns ===
+0: Lớp: 2A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Nghệ thuật | Âm nhạc
+13: Mĩ thuật
+14: Hoạt động trải nghiệm
+15: Giáo dục thể chất
+16: Năng lực cốt lõi | Năng lực chung
+17: col_17
+18: col_18
+19: Năng lực đặc thù
+20: col_20
+21: col_21
+22: col_22
+23: col_23
+24: Phẩm chất chủ yếu
+25: col_25
+26: col_26
+27: col_27
+28: col_28
+29: Đánh giá KQGD
+
+=== parse_sheet: built 37 columns ===
+0: Lớp: 2B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Nghệ thuật | Âm nhạc
+13: Mĩ thuật
+14: Hoạt động trải nghiệm
+15: Giáo dục thể chất
+16: Năng lực cốt lõi | Năng lực chung
+17: col_17
+18: col_18
+19: Năng lực đặc thù
+20: col_20
+21: col_21
+22: col_22
+23: col_23
+24: Phẩm chất chủ yếu
+25: col_25
+26: col_26
+27: col_27
+28: col_28
+29: Đánh giá KQGD
+
+=== parse_sheet: built 37 columns ===
+0: Lớp: 2C | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Nghệ thuật | Âm nhạc
+13: Mĩ thuật
+14: Hoạt động trải nghiệm
+15: Giáo dục thể chất
+16: Năng lực cốt lõi | Năng lực chung
+17: col_17
+18: col_18
+19: Năng lực đặc thù
+20: col_20
+21: col_21
+22: col_22
+23: col_23
+24: Phẩm chất chủ yếu
+25: col_25
+26: col_26
+27: col_27
+28: col_28
+29: Đánh giá KQGD
+
+=== parse_sheet: built 45 columns ===
+0: Lớp: 3A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: col_13
+14: Tin học
+15: col_15
+16: Công nghệ
+17: col_17
+18: Nghệ thuật | Âm nhạc
+19: Mĩ thuật
+20: Hoạt động trải nghiệm
+21: Giáo dục thể chất
+22: Năng lực cốt lõi | Năng lực chung
+23: col_23
+24: col_24
+25: Năng lực đặc thù
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 45 columns ===
+0: Lớp: 3B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: col_13
+14: Tin học
+15: col_15
+16: Công nghệ
+17: col_17
+18: Nghệ thuật | Âm nhạc
+19: Mĩ thuật
+20: Hoạt động trải nghiệm
+21: Giáo dục thể chất
+22: Năng lực cốt lõi | Năng lực chung
+23: col_23
+24: col_24
+25: Năng lực đặc thù
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 45 columns ===
+0: Lớp: 3C | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: col_13
+14: Tin học
+15: col_15
+16: Công nghệ
+17: col_17
+18: Nghệ thuật | Âm nhạc
+19: Mĩ thuật
+20: Hoạt động trải nghiệm
+21: Giáo dục thể chất
+22: Năng lực cốt lõi | Năng lực chung
+23: col_23
+24: col_24
+25: Năng lực đặc thù
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 48 columns ===
+0: Lớp: 4A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Công nghệ
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 48 columns ===
+0: Lớp: 4B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Công nghệ
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 48 columns ===
+0: Lớp: 4C | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Công nghệ
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 38 columns ===
+0: Lớp: 5A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Tiếng Việt | Mức đạt được
+7: Điểm KTĐK
+8: Toán | Mức đạt được
+9: Điểm KTĐK
+10: Khoa học | Mức đạt được
+11: Điểm KTĐK
+12: Lịch sử và Địa lí | Mức đạt được
+13: Điểm KTĐK
+14: Tiếng Anh | Mức đạt được
+15: Điểm KTĐK
+16: Tin học | Mức đạt được
+17: Điểm KTĐK
+18: Đạo đức | Mức đạt được
+19: Âm nhạc | Mức đạt được
+20: Mĩ thuật | Mức đạt được
+21: Kĩ thuật | Mức đạt được
+22: Thể dục | Mức đạt được
+23: Năng lực | Tự phục vụ, tự quản
+24: Hợp tác
+25: Tự học, GQVĐ
+26: Phẩm chất | Chăm học, chăm làm
+27: Tự tin, trách nhiệm
+28: Trung thực kỉ luật
+29: Đoàn kết, yêu thương
+
+=== parse_sheet: built 31 columns ===
+0: Lớp: 1A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: TViệt
+9: col_9
+10: ĐĐức
+11: TN-XH
+12: Tiếng Anh
+13: Nghệ thuật | Âm nhạc
+14: MT
+15: HĐTN
+16: GDTC
+17: Năng lực cốt lõi | Năng lực chung
+18: col_18
+19: col_19
+20: Năng lực đặc thù
+21: col_21
+22: col_22
+23: col_23
+24: col_24
+25: Phẩm chất chủ yếu
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 31 columns ===
+0: Lớp: 1B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: TViệt
+9: col_9
+10: ĐĐức
+11: TN-XH
+12: Tiếng Anh
+13: Nghệ thuật | Âm nhạc
+14: MT
+15: HĐTN
+16: GDTC
+17: Năng lực cốt lõi | Năng lực chung
+18: col_18
+19: col_19
+20: Năng lực đặc thù
+21: col_21
+22: col_22
+23: col_23
+24: col_24
+25: Phẩm chất chủ yếu
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 32 columns ===
+0: Lớp: 2A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: Tin học
+14: Nghệ thuật | Âm nhạc
+15: Mĩ thuật
+16: Hoạt động trải nghiệm
+17: Giáo dục thể chất
+18: Năng lực cốt lõi | Năng lực chung
+19: col_19
+20: col_20
+21: Năng lực đặc thù
+22: col_22
+23: col_23
+24: col_24
+25: col_25
+26: Phẩm chất chủ yếu
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 32 columns ===
+0: Lớp: 2B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: Tin học
+14: Nghệ thuật | Âm nhạc
+15: Mĩ thuật
+16: Hoạt động trải nghiệm
+17: Giáo dục thể chất
+18: Năng lực cốt lõi | Năng lực chung
+19: col_19
+20: col_20
+21: Năng lực đặc thù
+22: col_22
+23: col_23
+24: col_24
+25: col_25
+26: Phẩm chất chủ yếu
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 38 columns ===
+0: Lớp: 3A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: col_13
+14: Tin học
+15: col_15
+16: Tin học và Công nghệ (Công nghệ)
+17: col_17
+18: Nghệ thuật | Âm nhạc
+19: Mĩ thuật
+20: Hoạt động trải nghiệm
+21: Giáo dục thể chất
+22: Năng lực cốt lõi | Năng lực chung
+23: col_23
+24: col_24
+25: Năng lực đặc thù
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 38 columns ===
+0: Lớp: 3B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: col_13
+14: Tin học
+15: col_15
+16: Tin học và Công nghệ (Công nghệ)
+17: col_17
+18: Nghệ thuật | Âm nhạc
+19: Mĩ thuật
+20: Hoạt động trải nghiệm
+21: Giáo dục thể chất
+22: Năng lực cốt lõi | Năng lực chung
+23: col_23
+24: col_24
+25: Năng lực đặc thù
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 38 columns ===
+0: Lớp: 3C | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: col_13
+14: Tin học
+15: col_15
+16: Tin học và Công nghệ (Công nghệ)
+17: col_17
+18: Nghệ thuật | Âm nhạc
+19: Mĩ thuật
+20: Hoạt động trải nghiệm
+21: Giáo dục thể chất
+22: Năng lực cốt lõi | Năng lực chung
+23: col_23
+24: col_24
+25: Năng lực đặc thù
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 41 columns ===
+0: Lớp: 4A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 41 columns ===
+0: Lớp: 4B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 41 columns ===
+0: Lớp: 4C | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 41 columns ===
+0: Lớp: 5A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 41 columns ===
+0: Lớp: 5B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 41 columns ===
+0: Lớp: 5C | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 38 columns ===
+0: Lớp: 1A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: TViệt
+9: col_9
+10: ĐĐức
+11: TN-XH
+12: Tiếng Anh
+13: Nghệ thuật | Âm nhạc
+14: MT
+15: HĐTN
+16: GDTC
+17: Năng lực cốt lõi | Năng lực chung
+18: col_18
+19: col_19
+20: Năng lực đặc thù
+21: col_21
+22: col_22
+23: col_23
+24: col_24
+25: Phẩm chất chủ yếu
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 38 columns ===
+0: Lớp: 1B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: TViệt
+9: col_9
+10: ĐĐức
+11: TN-XH
+12: Tiếng Anh
+13: Nghệ thuật | Âm nhạc
+14: MT
+15: HĐTN
+16: GDTC
+17: Năng lực cốt lõi | Năng lực chung
+18: col_18
+19: col_19
+20: Năng lực đặc thù
+21: col_21
+22: col_22
+23: col_23
+24: col_24
+25: Phẩm chất chủ yếu
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 39 columns ===
+0: Lớp: 2A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: Tin học
+14: Nghệ thuật | Âm nhạc
+15: Mĩ thuật
+16: Hoạt động trải nghiệm
+17: Giáo dục thể chất
+18: Năng lực cốt lõi | Năng lực chung
+19: col_19
+20: col_20
+21: Năng lực đặc thù
+22: col_22
+23: col_23
+24: col_24
+25: col_25
+26: Phẩm chất chủ yếu
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 39 columns ===
+0: Lớp: 2B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: Tin học
+14: Nghệ thuật | Âm nhạc
+15: Mĩ thuật
+16: Hoạt động trải nghiệm
+17: Giáo dục thể chất
+18: Năng lực cốt lõi | Năng lực chung
+19: col_19
+20: col_20
+21: Năng lực đặc thù
+22: col_22
+23: col_23
+24: col_24
+25: col_25
+26: Phẩm chất chủ yếu
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 45 columns ===
+0: Lớp: 3A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: col_13
+14: Tin học
+15: col_15
+16: Tin học và Công nghệ (Công nghệ)
+17: col_17
+18: Nghệ thuật | Âm nhạc
+19: Mĩ thuật
+20: Hoạt động trải nghiệm
+21: Giáo dục thể chất
+22: Năng lực cốt lõi | Năng lực chung
+23: col_23
+24: col_24
+25: Năng lực đặc thù
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 45 columns ===
+0: Lớp: 3B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: col_13
+14: Tin học
+15: col_15
+16: Tin học và Công nghệ (Công nghệ)
+17: col_17
+18: Nghệ thuật | Âm nhạc
+19: Mĩ thuật
+20: Hoạt động trải nghiệm
+21: Giáo dục thể chất
+22: Năng lực cốt lõi | Năng lực chung
+23: col_23
+24: col_24
+25: Năng lực đặc thù
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 45 columns ===
+0: Lớp: 3C | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: TN-XH
+12: Tiếng Anh
+13: col_13
+14: Tin học
+15: col_15
+16: Tin học và Công nghệ (Công nghệ)
+17: col_17
+18: Nghệ thuật | Âm nhạc
+19: Mĩ thuật
+20: Hoạt động trải nghiệm
+21: Giáo dục thể chất
+22: Năng lực cốt lõi | Năng lực chung
+23: col_23
+24: col_24
+25: Năng lực đặc thù
+26: col_26
+27: col_27
+28: col_28
+29: col_29
+
+=== parse_sheet: built 48 columns ===
+0: Lớp: 4A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 48 columns ===
+0: Lớp: 4B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 48 columns ===
+0: Lớp: 4C | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 48 columns ===
+0: Lớp: 5A | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 48 columns ===
+0: Lớp: 5B | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29
+
+=== parse_sheet: built 48 columns ===
+0: Lớp: 5C | STT
+1: Mã học sinh
+2: HỌ VÀ TÊN HỌC SINH
+3: Họ và tên
+4: Ngày,
+tháng,
+năm sinh
+5: Nữ
+6: Môn học và hoạt động giáo dục | Toán
+7: col_7
+8: Tiếng Việt
+9: col_9
+10: Đạo đức
+11: Lịch sử và Địa lí
+12: col_12
+13: Tiếng Anh
+14: col_14
+15: Tin học
+16: col_16
+17: Khoa học
+18: col_18
+19: Tin học và Công nghệ (Công nghệ)
+20: col_20
+21: Nghệ thuật | Âm nhạc
+22: Mĩ thuật
+23: Hoạt động trải nghiệm
+24: Giáo dục thể chất
+25: Năng lực cốt lõi | Năng lực chung
+26: col_26
+27: col_27
+28: Năng lực đặc thù
+29: col_29

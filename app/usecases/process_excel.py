@@ -74,6 +74,10 @@ class ProcessExcelUseCase:
                 allow_kqgd=allow_kqgd
             )
 
+            # Safety: discard class summaries if snapshot_type doesn't allow KQGD
+            if not allow_kqgd:
+                class_summary_dicts = []
+
             # 2. Convert to domain objects
             subjects, summaries = ParserResultAdapter.convert_parser_output(
                 subject_dicts,
