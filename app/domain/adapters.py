@@ -7,7 +7,7 @@ Nguyên tắc:
 - Usecase chỉ làm việc với domain objects.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from app.domain.models import (
     SubjectSnapshot,
@@ -15,6 +15,40 @@ from app.domain.models import (
     SnapshotType,
     ProcessResult
 )
+
+
+def normalize_subject_name(subject: str) -> Optional[str]:
+    """
+    Normalize subject name by stripping parent prefix and removing invalid entries.
+
+    Rules:
+    - "Nghệ thuật - Âm nhạc" → "Âm nhạc"
+    - "Nghệ thuật - Mĩ thuật" → "Mĩ thuật"
+    - "Nghệ thuật" → None (skip - not a real subject)
+    - "Toán" → "Toán" (unchanged)
+
+    Args:
+        subject: Raw subject name from parser
+
+    Returns:
+        Normalized subject name, or None if subject should be skipped
+    """
+    if not subject:
+        return None
+
+    s = subject.strip()
+
+    # Has sub-category: strip parent prefix
+    if " - " in s:
+        parts = s.split(" - ", 1)
+        sub = parts[1].strip()
+        return sub if sub else None
+
+    # Standalone "Nghệ thuật": not a real subject
+    if s.lower() == "nghệ thuật":
+        return None
+
+    return s
 
 
 class ParserResultAdapter:
@@ -148,7 +182,17 @@ class ParserResultAdapter:
         for d in class_summary_dicts:
             d["snapshot_type"] = snapshot_type
 
-        subjects = ParserResultAdapter.to_subject_snapshots(subject_dicts)
+        # Normalize subject names and filter invalid entries
+        normalized_subjects = []
+        for d in subject_dicts:
+            raw_name = d.get("subject", "")
+            normalized = normalize_subject_name(raw_name)
+            if normalized is None:
+                continue  # skip invalid subjects (e.g. standalone "Nghệ thuật")
+            d["subject"] = normalized
+            normalized_subjects.append(d)
+
+        subjects = ParserResultAdapter.to_subject_snapshots(normalized_subjects)
         summaries = ParserResultAdapter.to_class_summaries(class_summary_dicts)
 
         return subjects, summaries

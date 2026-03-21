@@ -233,23 +233,17 @@ def read_vnedu_file(file_path: str) -> Dict[str, pd.DataFrame]:
 
 def _detect_class_name(df: pd.DataFrame, sheet_name: str) -> str:
     """
-    Mô tả:
-        Trích xuất tên lớp từ row 4 (idx 4) của DataFrame.
+    Scan first 10 rows for "Lớp" keyword to extract class name.
 
-    Input:
-        df (pd.DataFrame): DataFrame đã đọc từ Excel
-        sheet_name (str): Tên sheet (dùng làm fallback)
+    Args:
+        df: DataFrame from Excel
+        sheet_name: Fallback if not found
 
-    Output:
-        (str): Tên lớp (VD: "1A", "2B") hoặc sheet_name nếu không tìm thấy
-
-    Lưu ý:
-        - Tìm cell chứa "Lớp" hoặc "lớp"
-        - Ưu tiên lấy phần sau dấu ":"
+    Returns:
+        Class name (e.g. "1A", "2B") or sheet_name
     """
-    if len(df) > 4:
-        row = df.iloc[4]
-        for cell in row:
+    for i in range(min(10, len(df))):
+        for cell in df.iloc[i]:
             if isinstance(cell, str) and ("Lớp" in cell or "lớp" in cell or "lop" in cell.lower()):
                 parts = cell.strip().split(":")
                 if len(parts) > 1:
@@ -262,22 +256,16 @@ def _detect_class_name(df: pd.DataFrame, sheet_name: str) -> str:
 
 def _detect_academic_year(df: pd.DataFrame) -> str:
     """
-    Mô tả:
-        Trích xuất năm học từ row 3 (idx 3) của DataFrame.
+    Scan first 10 rows for "Năm học" keyword to extract academic year.
 
-    Input:
-        df (pd.DataFrame): DataFrame đã đọc từ Excel
+    Args:
+        df: DataFrame from Excel
 
-    Output:
-        (str): Năm học đã chuẩn hoá (VD: "2024-2025") hoặc "unknown"
-
-    Lưu ý:
-        - Gọi normalize_year() để chuẩn hoá format
-        - Trả về "unknown" nếu không tìm thấy
+    Returns:
+        Normalized year (e.g. "2024-2025") or "unknown"
     """
-    if len(df) > 3:
-        row = df.iloc[3]
-        for cell in row:
+    for i in range(min(10, len(df))):
+        for cell in df.iloc[i]:
             if isinstance(cell, str) and ("Năm học" in cell or "Nam hoc" in cell):
                 parts = cell.strip().split(":")
                 if len(parts) > 1:
@@ -876,11 +864,71 @@ def _validate_subject_columns(
 
 
 
+# Valid subject sub-names for strict naming
+VALID_SUBJECT_MAP = {
+    "nghe thuat": {"am nhac", "mi thuat"},
+    "hoatdongtrainghiem": {"hoatdongtrainghiem"},
+    "gdthechat": {"gdthechat"},
+}
+
+
+def _detect_header_layout(df: pd.DataFrame) -> Tuple[int, int, int, int]:
+    """
+    Dynamically detect header row positions from DataFrame.
+
+    Scans first 15 rows for group header keywords ("mon hoc", "hoat dong giao duc").
+    Then infers main, sub, metric rows from group position.
+
+    Args:
+        df: DataFrame from Excel
+
+    Returns:
+        Tuple of (group_row, main_row, sub_row, metric_row)
+
+    Raises:
+        ValueError: If group header cannot be detected
+    """
+    group_row = None
+
+    for i in range(min(15, len(df))):
+        row = df.iloc[i]
+        for cell in row:
+            if pd.isna(cell):
+                continue
+            cell_norm = _normalize(str(cell))
+            if "mon hoc" in cell_norm or "hoat dong giao duc" in cell_norm:
+                group_row = i
+                break
+        if group_row is not None:
+            break
+
+    if group_row is None:
+        raise ValueError("Cannot detect header layout: 'Môn học' group header not found")
+
+    main_row = group_row + 1
+    sub_row = group_row + 2
+    metric_row = group_row + 3
+
+    if metric_row >= len(df):
+        raise ValueError(
+            f"Cannot detect header layout: "
+            f"group_row={group_row} but DataFrame only has {len(df)} rows"
+        )
+
+    _log_debug(
+        f"Header rows: group={group_row}, main={main_row}, "
+        f"sub={sub_row}, metric={metric_row}"
+    )
+
+    return group_row, main_row, sub_row, metric_row
+
+
 def _build_column_plan(df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[int]]:
     """
     Robust dynamic subject detection for VNEDU Excel.
 
     Handles:
+    - Dynamic header detection (no hardcoded row indices)
     - Multi-level headers (group/main/sub/metric)
     - Subject splitting (e.g. Nghệ thuật → Âm nhạc, Mĩ thuật)
     - Variable number of subjects per grade
@@ -890,11 +938,16 @@ def _build_column_plan(df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[int
     if len(df) < 10:
         return [], []
 
-    # ===== HEADER EXTRACTION =====
-    h_group = df.iloc[5].ffill()
-    h_main = df.iloc[6].ffill()
-    h_sub = df.iloc[7].ffill()
-    h_metrics = df.iloc[8]
+    # ===== DYNAMIC HEADER DETECTION =====
+    df = df.copy()
+    group_row, main_row, sub_row, metric_row = _detect_header_layout(df)
+
+    # h_group and h_main: ffill for merged cells
+    h_group = df.iloc[group_row].ffill()
+    h_main = df.iloc[main_row].ffill()
+    # h_sub: NO ffill - strict, only use explicit values
+    h_sub = df.iloc[sub_row]
+    h_metrics = df.iloc[metric_row]
 
     def norm(x):
         return _normalize(str(x)) if pd.notna(x) else ""
@@ -924,10 +977,18 @@ def _build_column_plan(df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[int
         if not (is_score or is_level):
             continue
 
-        # ===== BUILD FULL SUBJECT NAME =====
-        full_name = main
-        if sub and norm(sub) != norm(main):
-            full_name = f"{main} - {sub}"
+        # ===== BUILD FULL SUBJECT NAME (STRICT) =====
+        # Only merge sub_name if it's a valid split (e.g. Nghệ thuật → Âm nhạc)
+        main_raw = str(h_main.iloc[col]).strip() if pd.notna(h_main.iloc[col]) else ""
+        main_norm = _normalize(main_raw)
+
+        sub_raw = str(h_sub.iloc[col]).strip() if pd.notna(h_sub.iloc[col]) else ""
+        sub_norm = _normalize(sub_raw)
+
+        if main_norm in VALID_SUBJECT_MAP and sub_norm in VALID_SUBJECT_MAP[main_norm]:
+            full_name = f"{main_raw} - {sub_raw}"
+        else:
+            full_name = main_raw
 
         col_data.append({
             "col": col,
@@ -1044,21 +1105,18 @@ def parse_sheet(df: pd.DataFrame, class_name: str, academic_year: str) -> List[D
     Raises:
         ValueError: Nếu subject type validation fail hoặc score validation fail
     """
-    # ==== FLATTEN HEADER ====
-    # Header rows: 5-8 (index 4-7) → 4 rows
-    # Data starts: row 9 (index 8)
-    if len(df) < 9:
-        return []  # Không đủ data
+    # ==== FLATTEN HEADER (DYNAMIC) ====
+    if len(df) < 10:
+        return []
 
-    # Build flattened column names từ 4 dòng header
-    new_columns = build_columns(df.iloc[4:8], header_rows=4)
-    
-    # Log to file để tránh Unicode issues
-    with open("debug_flatten.log", "a", encoding="utf-8") as f:
-        f.write(f"\n=== parse_sheet: built {len(new_columns)} columns ===\n")
-        for i, col in enumerate(new_columns[:30]):
-            f.write(f"{i}: {col}\n")
-    
+    # Detect header rows dynamically
+    group_row, main_row, sub_row, metric_row = _detect_header_layout(df)
+
+    # Build flattened column names from detected header region
+    header_start = group_row
+    header_end = metric_row + 1  # exclusive
+    new_columns = build_columns(df.iloc[header_start:header_end], header_rows=header_end - header_start)
+
     df = df.copy()
     df.columns = new_columns
     # =========================
@@ -1070,7 +1128,9 @@ def parse_sheet(df: pd.DataFrame, class_name: str, academic_year: str) -> List[D
     # Validate column counts
     _validate_subject_columns(subject_entries, class_name, academic_year)
 
-    data_start = 9  # Row 10 - dòng bắt đầu dữ liệu học sinh (sau 9 header rows)
+    # Data starts after header rows (metric_row + 1)
+    # Note: df has already been reindexed by new_columns, so we use original metric_row
+    data_start = metric_row + 1
 
     results = []
     data_rows = df.iloc[data_start:]
