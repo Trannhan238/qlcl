@@ -2,9 +2,14 @@
 
 ## Phase 1 — Data Pipeline (DONE)
 
+- [x] Dynamic header detection (`_detect_header_layout`, no hardcoded indices)
 - [x] Dynamic column detection from Excel headers
 - [x] Region-based parsing (Subjects vs KQGD)
+- [x] Stable KQGD parsing across all grades
+- [x] Multi-grade support (grades 1→5)
 - [x] Adapter layer (parser dict → domain objects)
+- [x] Subject normalization layer (`app/domain/normalizers.py`)
+- [x] Separation of parsing vs business logic
 - [x] Repository pattern (SQLite)
 - [x] Use case orchestration
 - [x] KQGD gating by snapshot_type
@@ -12,6 +17,7 @@
 - [x] Defensive parsing (empty scores, Wingdings ticks, float STT)
 - [x] Domain model cleanup (remove name heuristics)
 - [x] XLS loading with pywin32 fallback
+- [x] Debug cleanup (logging module, no file writes)
 
 ---
 

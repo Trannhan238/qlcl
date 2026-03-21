@@ -53,13 +53,6 @@ def build_columns(df: pd.DataFrame, header_rows: int = 4) -> List[str]:
     """
     header_df = df.iloc[:header_rows].fillna("")
     
-    # Debug header rows
-    with open("build_columns_debug.log", "a", encoding="utf-8") as f:
-        f.write(f"\n=== build_columns: header_rows={header_rows}, total_cols={len(header_df.columns)} ===\n")
-        for i in range(header_rows):
-            row_vals = header_df.iloc[i].tolist()
-            f.write(f" Row {i}: {row_vals}\n")
-    
     cols = []
     for col_idx in range(len(header_df.columns)):
         col_vals = []
@@ -324,23 +317,20 @@ def _matches_category(text: str, category_keywords: List[str]) -> bool:
 
 
 # ============================================================================
-# Logging helpers
+# Logging
 # ============================================================================
 
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 def _log_debug(message: str) -> None:
-    """Safe debug logging với UTF-8 support."""
-    try:
-        print(f"[DEBUG] {message}")
-    except UnicodeEncodeError:
-        print("[DEBUG] (unicode message)")
+    logger.debug(message)
 
 
 def _log_warning(message: str) -> None:
-    """Safe warning logging với UTF-8 support."""
-    try:
-        print(f"[WARNING] {message}")
-    except UnicodeEncodeError:
-        print("[WARNING] (unicode message)")
+    logger.warning(message)
 
 
 # ============================================================================

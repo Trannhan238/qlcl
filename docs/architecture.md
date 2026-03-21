@@ -12,14 +12,15 @@
 ┌──────────────────────▼──────────────────────────────┐
 │              Use Case Layer (app/usecases)           │
 │              process_excel.py                        │
-│   Orchestrate: parse → validate → persist            │
+│   Orchestrate: parse → normalize → validate → persist│
 │   Handles snapshot_type gating (KQGD, targets)       │
 └──────────────────────┬──────────────────────────────┘
                        │
 ┌──────────────────────▼──────────────────────────────┐
 │              Domain Layer (app/domain)               │
-│   models.py     → SubjectSnapshot, ClassSummary      │
-│   adapters.py   → Parser dict → Domain objects       │
+│   models.py      → SubjectSnapshot, ClassSummary     │
+│   normalizers.py → Business rules (subject naming)   │
+│   adapters.py    → Parser dict → Domain objects      │
 │   Pure domain logic, no I/O                          │
 └──────────────────────┬──────────────────────────────┘
                        │
@@ -63,15 +64,19 @@ file_loader.load_excel()
   │  Returns Dict[sheet_name, DataFrame]
   ▼
 parse_vnedu_file_with_class_summary()
-  │  1. Flatten 4-row header → single column names
+  │  RAW DATA EXTRACTION ONLY (no business rules)
+  │  1. Dynamic header detection (group/main/sub/metric)
   │  2. Build column plan (dynamic subject detection)
   │  3. Filter by group header ("Môn học" section only)
   │  4. Parse each subject (T/H/C counts, avg_score)
   │  5. Parse KQGD (if allow_kqgd=True)
   ▼
 ParserResultAdapter.convert_parser_output()
-  │  Dict → SubjectSnapshot / ClassSummary
-  │  Injects snapshot_type
+  │  1. normalize_subject_name() → apply business rules
+  │     "Nghệ thuật - Âm nhạc" → "Âm nhạc"
+  │     "Nghệ thuật" → removed
+  │  2. Inject snapshot_type
+  │  3. Convert dict → SubjectSnapshot / ClassSummary
   ▼
 ProcessExcelUseCase.execute()
   │  1. Validate domain objects
@@ -82,18 +87,26 @@ ProcessExcelUseCase.execute()
 SQLite Database
 ```
 
+### Separation of Concerns
+
+```
+parse (infra)  → raw dict    (NO transformation)
+normalize (domain) → business rules  (subject naming, etc.)
+adapter (domain) → domain objects
+repository → persistence
+```
+
 ## Key Design Decisions
 
-### 1. Layout-Aware Parsing (Not Schema-Based)
+### 1. Dynamic Header Detection (Not Hardcoded)
 
-Parser reads Excel row/column positions, not cell addresses:
-- Row 5: Group header ("Môn học", "Năng lực cốt lõi")
-- Row 6: Subject name (ffill for merged cells)
-- Row 7: Sub-name
-- Row 8: Metric label ("Mức đạt được", "Điểm KTĐK")
-- Row 9+: Data rows
+Parser dynamically detects header positions by scanning for keywords:
+- `_detect_header_layout(df)` scans first 15 rows
+- Finds "Môn học" / "Hoạt động giáo dục" keyword → group_row
+- Infers: main_row = group_row + 1, sub_row = group_row + 2, metric_row = group_row + 3
+- No hardcoded row indices
 
-This tolerates column insertion/deletion without breaking.
+This tolerates extra title rows, merged cells, and different grade layouts.
 
 ### 2. Region-Based Parsing
 

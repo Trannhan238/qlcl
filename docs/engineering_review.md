@@ -123,9 +123,39 @@ Only raise on hard constraints (KQGD sum mismatch, negative counts).
 
 | Metric | Before | After |
 |--------|--------|-------|
-| Files | 4 | 12 |
+| Files | 4 | 13 |
 | Layers | 3 | 6 |
+| Header detection | Hardcoded row indices | Dynamic keyword scan |
 | Subject detection | Hardcoded keywords | Dynamic from header |
 | KQGD parsing | Shared state | Pure function |
 | Error handling | Silent catch | Defensive downgrade |
 | Batch consistency | Inconsistent | Deterministic |
+| Domain logic | Mixed in parser | Separated in normalizers |
+
+---
+
+## Final Resolution
+
+### Root Cause of Previous Bugs
+
+1. **Header misalignment**: Parser assumed fixed row indices (5, 6, 7, 8). Extra metadata rows in grade 5 files shifted everything.
+
+2. **Domain logic mixed into parser**: Subject naming rules (e.g. "Nghệ thuật → Âm nhạc") were applied during parsing, making parser fragile to policy changes.
+
+3. **State contamination**: KQGD parser used closures and cached state, causing batch failures.
+
+### Final Architecture
+
+```
+parse (infra) → raw dict (NO transformation)
+normalize (domain) → business rules
+adapter (domain) → domain objects
+repository → persistence
+```
+
+### Key Changes in This Phase
+
+- `_detect_header_layout()`: Dynamic header detection (no hardcoded indices)
+- `_build_column_plan()`: Dynamic subject detection with `df.copy()` (stateless)
+- `app/domain/normalizers.py`: Business rules separated from parser
+- `logging` module: Replaced `print()` debug statements
