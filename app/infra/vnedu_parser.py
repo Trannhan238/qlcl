@@ -497,9 +497,23 @@ def _parse_kqgd_summary(
     class_name: str,
     academic_year: str,
 ) -> Optional[Dict[str, Any]]:
+    """
+    Pure function: parse KQGD section from a single sheet's DataFrame.
 
-    # 🔥 FIX 1: detect "kqgd" thay vì string dài
+    No shared state. Each call works on a fresh copy.
+    All variables initialized inside function scope.
+    """
+
+    # Fresh copy to avoid mutation across batch calls
+    df = df.copy()
+
+    # --- Local variables only (no globals, no caching) ---
     section_start = None
+    category_map: Dict[str, int] = {}
+    header_end = None
+    matched_cols = set()
+
+    # --- Step 1: Find KQGD section ---
     for i in range(min(60, len(df))):
         for cell in df.iloc[i]:
             if isinstance(cell, str) and "kqgd" in _normalize(cell):
@@ -509,15 +523,12 @@ def _parse_kqgd_summary(
             break
 
     if section_start is None:
+        _log_debug(f"[{class_name}] KQGD section not found")
         return None
 
-    # Detect categories - try single cell first, then vertical text fallback
-    # Priority order: HTXS (longest keyword) → HTT → CHT → HT (shortest keyword)
-    # This avoids "hoan thanh" matching HTXS/HTT/CHT before HT
-    category_map: Dict[str, int] = {}
-    header_end = None
-    matched_cols = set()
+    _log_debug(f"[{class_name}] KQGD section at row {section_start}")
 
+    # --- Step 2: Detect category columns ---
     for r in range(section_start + 1, min(section_start + 12, len(df))):
         for c in range(len(df.columns)):
             if len(category_map) >= 4:
@@ -532,11 +543,11 @@ def _parse_kqgd_summary(
             cell_str = str(cell).strip()
             cell_norm = _normalize(cell_str)
 
-            # Skip tick marks - these are data, not headers
-            if cell_str in ("\uf0fc", "✓", "✔", "x", "1"):
+            # Skip tick marks
+            if cell_str in ("\uf0fc", "✓", "✔", "x", "X", "1"):
                 continue
 
-            # Try exact match first (most specific)
+            # Exact match first
             matched_cat = None
             for cat_name in ["HTXS", "HTT", "CHT", "HT"]:
                 if cat_name in category_map:
@@ -549,7 +560,7 @@ def _parse_kqgd_summary(
                 if matched_cat:
                     break
 
-            # Try substring match if no exact match
+            # Substring match fallback
             if not matched_cat:
                 for cat_name in ["HTXS", "HTT", "CHT", "HT"]:
                     if cat_name in category_map:
@@ -570,7 +581,7 @@ def _parse_kqgd_summary(
         if len(category_map) >= 4:
             break
 
-    # Fallback: try vertical text if single cell didn't find all 4
+    # Fallback: vertical text
     if len(category_map) < 4:
         for c in range(len(df.columns)):
             if len(category_map) >= 4:
@@ -581,8 +592,7 @@ def _parse_kqgd_summary(
             if not vertical_text:
                 continue
             text_norm = _normalize(vertical_text)
-
-            if text_norm in ("\uf0fc", "✓", "✔", "x", "1"):
+            if text_norm in ("\uf0fc", "✓", "✔", "x", "X", "1"):
                 continue
 
             matched_cat = None
@@ -605,44 +615,41 @@ def _parse_kqgd_summary(
                     if pd.notna(val) and str(val).strip():
                         header_end = max(header_end or 0, rv)
 
+    # Debug: log detected columns per file
+    _log_debug(f"[{class_name}] KQGD category_map: {category_map}")
+
     if len(category_map) < 4:
+        _log_debug(f"[{class_name}] KQGD incomplete: only {len(category_map)}/4 categories")
         return None
 
     data_start = (header_end or section_start) + 1
 
+    # --- Step 3: Count students and checkboxes ---
     HTXS = HTT = HT = CHT = 0
     total_students = 0
-
-    def _is_student(val):
-        """Accept STT values: int, float, string. Ignore NaN/empty."""
-        if pd.isna(val):
-            return False
-        try:
-            n = float(val)
-            return n == int(n) and n > 0
-        except (ValueError, TypeError):
-            return False
 
     for row_idx in range(data_start, len(df)):
         row = df.iloc[row_idx]
         first = row[0] if len(row) > 0 else None
 
-        if not _is_student(first):
+        # Safe student detection: handle int, float, string
+        if pd.isna(first):
+            continue
+        try:
+            n = float(first)
+            if not (n == int(n) and n > 0):
+                continue
+        except (ValueError, TypeError):
             continue
 
         total_students += 1
 
-        counted = False
-
         if is_tick(row.iloc[category_map["HTXS"]]):
             HTXS += 1
-            counted = True
         elif is_tick(row.iloc[category_map["HTT"]]):
             HTT += 1
-            counted = True
         elif is_tick(row.iloc[category_map["HT"]]):
             HT += 1
-            counted = True
         elif is_tick(row.iloc[category_map["CHT"]]):
             CHT += 1
 
@@ -654,6 +661,11 @@ def _parse_kqgd_summary(
             f"KQGD mismatch: {HTXS+HTT+HT+CHT} != {total_students} "
             f"({class_name} {academic_year})"
         )
+
+    _log_debug(
+        f"[{class_name}] KQGD OK: HTXS={HTXS} HTT={HTT} HT={HT} CHT={CHT} "
+        f"total={total_students}"
+    )
 
     return {
         "HTXS": HTXS,

@@ -1,212 +1,234 @@
-VNEDU Parsing and Data Integrity Contract
-==========================================
+# Layer Contracts
 
-This document defines a strict, enforceable contract for parsing VNEDU Excel data
-and maintaining data integrity within the VNEDU aggregation system.
+Defines strict contracts between each layer. No layer may bypass its contract.
 
 ---
 
-1. Snapshot Rules
+## 1. Parser Contract
 
-1.1 Snapshot Types
-- baseline      = HK2 of previous academic year
-- actual_hk1   = current academic year, HK1
-- actual_hk2   = current academic year, HK2
+**Module:** `app/infra/vnedu_parser.py`
 
-1.2 Snapshot Type Enforcement
-- snapshot_type MUST be one of: {"baseline", "actual_hk1", "actual_hk2", "target"}
-- Any other value MUST raise ValueError
-- "commitment" is NOT a valid snapshot_type for subject_snapshots or class_summary
+### Input
 
-1.3 KQGD Presence Rule
-- KQGD data MUST be parsed ONLY for:
-  - baseline
-  - actual_hk2
-- KQGD data MUST NOT be parsed for:
-  - actual_hk1
-  - target
-  - commitment
-  - any other snapshot_type
+```python
+parse_vnedu_file_with_class_summary(
+    file_path: str,
+    allow_kqgd: bool = True
+) -> Tuple[List[Dict], List[Dict]]
+```
 
----
+### Output
 
-2. Subject Structure Rules (CRITICAL)
+```python
+# subjects: List[Dict]
+{
+    "class_name": str,
+    "academic_year": str,
+    "subject": str,
+    "subject_type": "scored" | "qualitative",
+    "avg_score": float | None,
+    "student_count": int,
+    "T": int, "H": int, "C": int,
+    "T_pct": float | None, "H_pct": float | None, "C_pct": float | None,
+}
 
-2.1 Two Subject Types Exist
+# class_summaries: List[Dict]
+{
+    "class_name": str,
+    "academic_year": str,
+    "HTXS": int, "HTT": int, "HT": int, "CHT": int,
+    "total_students": int,
+}
+```
 
-A. Scored Subjects (môn có điểm)
-- Structure: TWO adjacent columns
-  - Column N:   T/H/C bucket counts
-  - Column N+1: Numeric score
-- REQUIRED fields:
-  - avg_score    (from score column)
-  - T, H, C     (from T/H/C column)
-- avg_score MUST NOT be NULL
+### Rules
 
-B. Qualitative Subjects (môn nhận xét)
-- Structure: ONE column only
-  - Column N: T/H/C bucket counts
-- REQUIRED fields:
-  - T, H, C     (from T/H/C column)
-- avg_score MUST be NULL
-
-2.2 Column Grouping Detection (Core Invariant)
-- Parser MUST detect subject type by STRUCTURE:
-  - Two adjacent columns with same subject header → scored subject
-  - Single column with subject header → qualitative subject
-- Two adjacent columns belong to the same subject ONLY IF:
-  - Their headers match AFTER normalization
-- Normalization steps for header comparison:
-  - lowercase
-  - remove accents (VD: đ → d)
-  - trim whitespace
-- Parser MUST validate that:
-  - Scored subject = exactly 2 columns
-  - Qualitative subject = exactly 1 column
-- If adjacent columns do NOT match after normalization → MUST raise ValueError
-- If column count deviates from expected → MUST raise ValueError
-- Parser MUST NOT rely solely on column names to determine type
-- Parser MUST validate column grouping consistency
+- Pure I/O: reads Excel, returns dicts. No side effects.
+- Must not raise fatal errors on partial data (downgrade gracefully).
+- `allow_kqgd=False` → class_summaries must be empty list.
+- Subject type is determined by Excel structure, not subject name.
+- Single-column subjects → forced `qualitative`.
+- Empty score column → downgraded to `qualitative`.
+- KQGD: `HTXS + HTT + HT + CHT == total_students` or raise ValueError.
 
 ---
 
-3. Data Contracts
+## 2. Adapter Contract
 
-3.1 subject_snapshots
+**Module:** `app/domain/adapters.py`
 
-FIELDS:
-  - academic_year : str
-  - class_name    : str
-  - subject       : str
-  - snapshot_type : str
-  - avg_score     : float | NULL
-  - student_count : int
-  - T             : int
-  - H             : int
-  - C             : int
+### Input
 
-CONSTRAINTS:
+```python
+ParserResultAdapter.convert_parser_output(
+    subject_dicts: List[Dict],
+    class_summary_dicts: List[Dict],
+    snapshot_type: SnapshotType
+) -> Tuple[List[SubjectSnapshot], List[ClassSummary]]
+```
 
-  If scored subject:
-    - avg_score MUST NOT be NULL
-    - avg_score MUST be in range [0, 10]
-    - T, H, C MUST exist (non-null)
-    - T, H, C MUST be >= 0
+### Output
 
-  If qualitative subject:
-    - avg_score MUST be NULL
-    - T, H, C MUST exist (non-null)
-    - T, H, C MUST be >= 0
-    - T + H + C <= student_count
+- `List[SubjectSnapshot]` — domain objects with injected snapshot_type
+- `List[ClassSummary]` — domain objects with injected snapshot_type
 
-3.2 avg_score Range Validation
-  - avg_score MUST be in range [0, 10]
-  - If outside range → raise ValueError
+### Rules
 
-3.3 class_summary (KQGD)
-
-FIELDS:
-  - academic_year : str
-  - class_name    : str
-  - snapshot_type : str
-  - HTXS : int
-  - HTT  : int
-  - HT   : int
-  - CHT  : int
-
-DEFINITIONS:
-  - total_students_from_KQGD = HTXS + HTT + HT + CHT
-
-CONSTRAINTS:
-  - total_students_from_KQGD MUST be > 0
-  - If total_students_from_KQGD == 0 → raise ValueError
-  - HTXS + HTT + HT + CHT == total_students_from_KQGD
-  - If mismatch → raise structured error (NO silent fail)
-
-3.4 Cross-Validation Rules
-  - class_summary total_students (total_students_from_KQGD) MUST match subject_snapshots.student_count
-  - If mismatch → raise ValueError
-  - This validation applies ONLY when snapshot_type IN {"baseline", "actual_hk2"}
+- Converts raw parser dicts → validated domain objects.
+- Injects `snapshot_type` into each object.
+- Subject name normalization happens here, not in parser.
+- Must not modify parser dicts (read-only).
 
 ---
 
-4. KQGD Rules
+## 3. Domain Contract
 
-4.1 Parsing Gate
-  - Parse KQGD ONLY IF snapshot_type IN {"baseline", "actual_hk2"}
-  - Skip KQGD parsing entirely for all other snapshot_type values
+**Module:** `app/domain/models.py`
 
-4.2 Aggregation
-  - Count HTXS, HTT, HT, CHT from KQGD section
-  - Do NOT create student-level records
+### SubjectSnapshot
 
-4.3 Zero-Data Protection
-  - total_students_from_KQGD MUST be > 0
-  - If total == 0 → raise ValueError("KQGD: empty data in class {class_name}, year {academic_year}")
+```python
+@dataclass
+class SubjectSnapshot:
+    academic_year: str
+    class_name: str
+    subject: str
+    snapshot_type: SnapshotType
+    avg_score: Optional[float]
+    student_count: int
+    T: int
+    H: int
+    C: int
+```
 
-4.4 Validation
-  - Sum(HTXS + HTT + HT + CHT) == total_students_from_KQGD
-  - Mismatch → raise ValueError("KQGD: HTXS+HTT+HT+CHT ({sum}) != total_students ({total}) in class {class_name}, year {academic_year}")
+**Validation rules (`validate()`):**
+- T, H, C >= 0
+- T + H + C <= student_count
+- avg_score in [0, 10] if provided
 
----
+**`is_scored()` returns `True` if `avg_score is not None`.**
 
-5. Parser Rules
+### ClassSummary
 
-5.1 Identity Preservation
-  - Parser MUST NOT modify academic_year
-  - Parser MUST NOT modify class_name
+```python
+@dataclass
+class ClassSummary:
+    academic_year: str
+    class_name: str
+    snapshot_type: SnapshotType
+    HTXS: int
+    HTT: int
+    HT: int
+    CHT: int
+    total_students: int
+```
 
-5.2 Required Validations
-  - Header row detection
-  - Subject grouping (1 column vs 2 columns per subject)
-  - Data consistency within grouped columns
-  - Non-negative numeric fields
+### Rules
 
-5.3 Failure Semantics
-  - Parser MUST NOT silently fail
-  - Parser MUST raise structured errors with descriptive messages
-  - Errors must include: class_name, academic_year, subject (if applicable)
-
----
-
-6. Forbidden Patterns
-
-- Treating scored subjects as score-only (ignoring T/H/C)
-- Ignoring T/H/C in scored subjects
-- Mixing subject types within same logical group
-- Pairing adjacent columns with non-matching headers
-- Allowing scored subject to have != 2 columns
-- Allowing qualitative subject to have != 1 column
-- Setting avg_score for qualitative subjects
-- Setting NULL avg_score for scored subjects
-- Allowing avg_score outside [0, 10]
-- Allowing total_students_from_KQGD == 0
-- Silent exception handling
-- Skipping KQGD validation
-- Allowing T + H + C > student_count for qualitative subjects
-- Shifting academic_year or class_name in parser layer
-- Using invalid snapshot_type values
+- Domain objects are immutable after creation.
+- No I/O, no database access.
+- `validate()` must be called before persistence.
 
 ---
 
-7. Enforcement
+## 4. Repository Contract
 
-7.1 Unit Tests Required
-  - Scored vs qualitative subject detection
-  - Column grouping validation
-  - KQGD detection and sum validation
-  - Snapshot gate enforcement (baseline, actual_hk2 vs others)
+**Module:** `app/repositories/interfaces.py`, `sqlite_repository.py`
 
-7.2 Integration Tests Required
-  - End-to-end parse of synthetic VNEDU sheet with KQGD block
-  - Verify class_summary output matches expected HTXS/HTT/HT/CHT
-  - Verify structured errors raised on mismatch
+### Interface
 
-7.3 Error Format
-  - All parsing errors: ValueError with message
-  - Message must include context (class_name, academic_year, reason)
-  - Example: ValueError("KQGD: HTXS+HTT+HT+CHT (28) != total_students (27) in class 1A, year 2024-2025")
+```python
+class SubjectSnapshotRepository(ABC):
+    def upsert(self, snapshot: SubjectSnapshot) -> None
+    def find_by_class(self, class_name: str, academic_year: str) -> List[SubjectSnapshot]
+
+class ClassSummaryRepository(ABC):
+    def upsert(self, summary: ClassSummary) -> None
+    def find_by_class(self, class_name: str, academic_year: str) -> Optional[ClassSummary]
+```
+
+### Rules
+
+- Save and query only. No business logic.
+- Upsert by unique key: `(academic_year, class_name, subject, snapshot_type)`.
+- Must not modify domain objects.
+- Must not validate business rules (that's domain layer).
 
 ---
 
-END OF CONTRACT
+## 5. Use Case Contract
+
+**Module:** `app/usecases/process_excel.py`
+
+### Input
+
+```python
+ProcessExcelUseCase.execute(
+    file_path: str,
+    snapshot_type: SnapshotType,
+    score_delta: Optional[float] = None
+) -> ProcessResult
+```
+
+### Output
+
+```python
+@dataclass
+class ProcessResult:
+    success: bool
+    errors: List[str]
+    saved_subjects: int
+    saved_class_summaries: int
+```
+
+### Rules
+
+- Orchestrates: parse → validate → persist.
+- `snapshot_type` determines KQGD parsing:
+  - `baseline`, `actual_hk2` → `allow_kqgd=True`
+  - `actual_hk1`, `target`, `commitment` → `allow_kqgd=False`, class_summaries cleared
+- If `snapshot_type=baseline` + `score_delta` → generate targets.
+- Errors collected in `ProcessResult.errors`, not raised.
+- Must not modify parser or domain objects.
+
+---
+
+## 6. Database Contract
+
+**Module:** `app/db/connection.py`
+
+### Tables
+
+| Table | Unique Key |
+|-------|-----------|
+| `subject_snapshots` | `(academic_year, class_name, subject, snapshot_type)` |
+| `class_summary` | `(academic_year, class_name, snapshot_type)` |
+| `teacher_commitments` | `(academic_year, class_name, subject)` |
+| `student_achievements` | `(academic_year, category, level)` |
+
+### Rules
+
+- Connection managed via context manager: `with get_conn() as conn:`
+- Schema auto-created on first use.
+- No business logic in SQL.
+
+---
+
+## 7. KQGD Gating Rules
+
+| `snapshot_type` | Parse KQGD? | class_summary? | Generate targets? |
+|----------------|-------------|----------------|-------------------|
+| `baseline` | Yes | Yes | If score_delta |
+| `actual_hk1` | No | No | No |
+| `actual_hk2` | Yes | Yes | No |
+| `target` | No | No | No |
+| `commitment` | No | No | No |
+
+---
+
+## 8. Cross-Layer Rules
+
+- Parser output is raw dicts. Domain layer converts.
+- Domain objects validate themselves. Use case layer handles errors.
+- Repository is dumb storage. No queries with business logic.
+- UI never talks to parser directly. Always through use case.

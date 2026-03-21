@@ -1,341 +1,168 @@
 # Architecture
 
-## 1. System Overview
+## System Overview
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        UI Layer                              │
-│                   (Streamlit - main.py)                     │
-│   - File upload                                            │
-│   - Data display                                           │
-│   - Charts                                                 │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────────────┐
-│                    Domain Layer                             │
-│                 (app/core/*.py)                             │
-│   - compare.py: comparison logic                           │
-│   - Baseline mapping handled at compare layer               │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────────────┐
-│                     Parser Layer                            │
-│           (app/infra/vnedu_parser.py)                      │
-│   - Excel file reading                                     │
-│   - Header detection                                       │
-│   - Subject structure detection (scored vs qualitative)     │
-│   - Column grouping (1 column vs 2 columns per subject)     │
-│   - KQGD extraction (only baseline, actual_hk2)            │
-│   - Checkbox counting                                      │
-└─────────────────────────┬───────────────────────────────────┘
-                          │
-┌─────────────────────────▼───────────────────────────────────┐
-│                   Storage Layer                             │
-│               (SQLite - sqms.db)                           │
-│   - subject_snapshots                                     │
-│   - class_summary                                         │
-│   - teacher_commitments                                   │
-│   - student_achievements                                  │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────┐
+│                  UI Layer (Streamlit)                │
+│                  app/main.py                        │
+│   Upload → Process → Display → Export               │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
+│              Use Case Layer (app/usecases)           │
+│              process_excel.py                        │
+│   Orchestrate: parse → validate → persist            │
+│   Handles snapshot_type gating (KQGD, targets)       │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
+│              Domain Layer (app/domain)               │
+│   models.py     → SubjectSnapshot, ClassSummary      │
+│   adapters.py   → Parser dict → Domain objects       │
+│   Pure domain logic, no I/O                          │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
+│           Infrastructure Layer (app/infra)            │
+│   vnedu_parser.py  → Excel parsing (layout-aware)    │
+│   file_loader.py   → .xls/.xlsx loading               │
+│   excel_normalizer.py → format normalization          │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
+│           Repository Layer (app/repositories)         │
+│   interfaces.py       → Abstract repository           │
+│   sqlite_repository.py → SQLite implementation        │
+└──────────────────────┬──────────────────────────────┘
+                       │
+┌──────────────────────▼──────────────────────────────┐
+│              Database (app/db)                        │
+│   connection.py → SQLite connection management        │
+│   Tables: subject_snapshots, class_summary,           │
+│           teacher_commitments, student_achievements   │
+└─────────────────────────────────────────────────────┘
+
+Supporting:
+┌─────────────────────────────────────────────────────┐
+│              Core Layer (app/core)                    │
+│   compare.py  → Baseline vs actual comparison        │
+│   snapshot.py → Snapshot management                   │
+│   ports.py    → Interface definitions                 │
+└─────────────────────────────────────────────────────┘
 ```
 
-### Layer Responsibilities
-
-| Layer | Responsibility | Files |
-|-------|----------------|-------|
-| **UI** | User interaction, data display, file upload trigger | `main.py` |
-| **Domain** | Comparison logic, baseline mapping | `compare.py` |
-| **Parser** | Excel parsing, subject structure detection, KQGD extraction | `vnedu_parser.py` |
-| **Storage** | Data persistence | SQLite tables |
-
----
-
-## 2. Data Model
-
-### Subject-Level Data
-
-**Table: `subject_snapshots`**
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | INTEGER | Primary key |
-| `academic_year` | TEXT | e.g., "2024-2025" (NOT modified by parser) |
-| `class_name` | TEXT | e.g., "1A" (NOT modified by parser) |
-| `subject` | TEXT | e.g., "Toán", "Tiếng Việt" |
-| `snapshot_type` | TEXT | "actual_hk1", "actual_hk2", "baseline", "target" |
-| `avg_score` | REAL | Average score (0-10), NULL for qualitative subjects |
-| `student_count` | INTEGER | Total students in class |
-| `T` | INTEGER | Count of "Hoàn thành xuất sắc" students |
-| `H` | INTEGER | Count of "Hoàn thành" students |
-| `C` | INTEGER | Count of "Chưa hoàn thành" students |
-
-**Unique constraint**: `(academic_year, class_name, subject, snapshot_type)`
-
-**Valid snapshot_type values**: `actual_hk1`, `actual_hk2`, `baseline`, `target`
-
----
-
-### Class-Level Data (KQGD)
-
-**Table: `class_summary`**
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | INTEGER | Primary key |
-| `academic_year` | TEXT | e.g., "2024-2025" |
-| `class_name` | TEXT | e.g., "1A" |
-| `snapshot_type` | TEXT | **ONLY**: "baseline", "actual_hk2" |
-| `HTXS` | INTEGER | Count of "Hoàn thành xuất sắc" |
-| `HTT` | INTEGER | Count of "Hoàn thành tốt" |
-| `HT` | INTEGER | Count of "Hoàn thành" |
-| `CHT` | INTEGER | Count of "Chưa hoàn thành" |
-| `HTCTLH_HT` | INTEGER | Count of "Hoàn thành chất lượng học tập" |
-| `HTCTLH_CHT` | INTEGER | Count of "Chưa hoàn thành chất lượng học tập" |
-| `HSXS` | INTEGER | Count of "Học sinh xuất sắc" |
-| `HS_TieuBieu` | INTEGER | Count of "Học sinh tiêu biểu" |
-
-**Unique constraint**: `(academic_year, class_name, snapshot_type)`
-
-**KQGD constraint**: `HTXS + HTT + HT + CHT == total_students_from_KQGD_block`
-- Mismatch MUST raise ValueError
-
----
-
-### School-Level Data
-
-**Table: `teacher_commitments`**
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | INTEGER | Primary key |
-| `academic_year` | TEXT | e.g., "2024-2025" |
-| `class_name` | TEXT | e.g., "1A" |
-| `subject` | TEXT | e.g., "Toán" |
-| `avg_score_target` | REAL | Target average score |
-| `T_pct_target` | REAL | Target T percentage |
-| `H_pct_target` | REAL | Target H percentage |
-| `C_pct_target` | REAL | Target C percentage |
-| `HTXS_target` | INTEGER | Target HTXS count |
-| `HTT_target` | INTEGER | Target HTT count |
-| `HT_target` | INTEGER | Target HT count |
-| `CHT_target` | INTEGER | Target CHT count |
-
-**Unique constraint**: `(academic_year, class_name, subject)`
-
----
-
-**Table: `student_achievements`**
-
-| Column | Type | Description |
-|--------|------|-------------|
-| `id` | INTEGER | Primary key |
-| `academic_year` | TEXT | e.g., "2024-2025" |
-| `category` | TEXT | e.g., "Văn Toán Tuổi thơ", "IOE" |
-| `level` | TEXT | "Xã", "Quận/Huyện", "Tỉnh", "Quốc gia" |
-| `quantity` | INTEGER | Number of students |
-
-**Unique constraint**: `(academic_year, category, level)`
-
----
-
-## 3. Subject Structure Rules (CRITICAL)
-
-### Two Subject Types
-
-**A. Scored Subjects (môn có điểm)**
-- Structure: TWO adjacent columns
-  - Column N:   T/H/C bucket counts
-  - Column N+1: Numeric score
-- REQUIRED fields:
-  - `avg_score` MUST NOT be NULL
-  - T, H, C MUST exist
-- Example: Toán, Tiếng Việt, Tiếng Anh, Khoa học
-
-**B. Qualitative Subjects (môn nhận xét)**
-- Structure: ONE column only
-  - Column N: T/H/C bucket counts
-- REQUIRED fields:
-  - `avg_score` MUST be NULL
-  - T, H, C MUST exist
-  - T + H + C <= student_count
-- Example: Đạo đức, Nghệ thuật, GDTC
-
-### Column Grouping Detection (Core Invariant)
-
-The parser MUST detect subject type by STRUCTURE:
-- Two adjacent columns with same subject header → scored subject
-- Single column with subject header → qualitative subject
-
-**Parser MUST NOT rely solely on column names to determine type.**
-**Parser MUST validate column grouping consistency.**
-
----
-
-## 4. Data Flow
-
-### Pipeline: Excel → Database → UI
+## Data Flow
 
 ```
-1. User uploads Excel file
-          ↓
-2. Parser reads file (pd.read_excel)
-          ↓
-3. Detect class name, academic year
-          ↓
-4. Detect subject structure (scored vs qualitative)
-          ↓
-5. Group columns by subject (1 column vs 2 columns)
-          ↓
-6. Parse subject data (T/H/C counts, avg_score)
-          ↓
-7. IF snapshot_type IN {"baseline", "actual_hk2"}:
-      Parse KQGD section (HTXS/HTT/HT/CHT)
-      Validate: sum == total_students
-   ELSE:
-      Skip KQGD parsing
-          ↓
-8. Validate data consistency
-   - avg_score NOT NULL for scored subjects
-   - avg_score IS NULL for qualitative subjects
-   - T, H, C >= 0
-   - T + H + C <= student_count (qualitative only)
-          ↓
-9. Insert to database (upsert)
-          ↓
-10. Query from database
-          ↓
-11. Compare with targets/baselines (compare layer)
-          ↓
-12. Display in UI (table, charts)
+Excel (.xls/.xlsx)
+  │
+  ▼
+file_loader.load_excel()
+  │  Handles .xls → .xlsx conversion (pywin32)
+  │  Returns Dict[sheet_name, DataFrame]
+  ▼
+parse_vnedu_file_with_class_summary()
+  │  1. Flatten 4-row header → single column names
+  │  2. Build column plan (dynamic subject detection)
+  │  3. Filter by group header ("Môn học" section only)
+  │  4. Parse each subject (T/H/C counts, avg_score)
+  │  5. Parse KQGD (if allow_kqgd=True)
+  ▼
+ParserResultAdapter.convert_parser_output()
+  │  Dict → SubjectSnapshot / ClassSummary
+  │  Injects snapshot_type
+  ▼
+ProcessExcelUseCase.execute()
+  │  1. Validate domain objects
+  │  2. Deduplicate subjects
+  │  3. Generate targets (if baseline + delta)
+  │  4. Persist via repository
+  ▼
+SQLite Database
 ```
 
-### Baseline Mapping
+## Key Design Decisions
 
-**Baseline mapping is handled in the compare layer, NOT in the parser.**
-- Parser preserves original `academic_year` and `class_name`
-- Compare layer performs baseline-to-current mapping for display/comparison
-- No shifting at parser level
+### 1. Layout-Aware Parsing (Not Schema-Based)
 
----
+Parser reads Excel row/column positions, not cell addresses:
+- Row 5: Group header ("Môn học", "Năng lực cốt lõi")
+- Row 6: Subject name (ffill for merged cells)
+- Row 7: Sub-name
+- Row 8: Metric label ("Mức đạt được", "Điểm KTĐK")
+- Row 9+: Data rows
 
-## 5. Data Integrity Rules
+This tolerates column insertion/deletion without breaking.
 
-### Subject Type Constraints
+### 2. Region-Based Parsing
 
-| Subject Type | avg_score | T, H, C | T+H+C |
-|--------------|-----------|---------|-------|
-| Scored | MUST NOT be NULL | MUST exist | <= student_count |
-| Qualitative | MUST be NULL | MUST exist | <= student_count |
+The parser filters by group header:
+- **"Môn học và hoạt động giáo dục"** → subjects (parsed)
+- **"Năng lực cốt lõi"** → skipped
+- **"Phẩm chất chủ yếu"** → skipped
+- **"Đánh giá KQGD"** → KQGD section (parsed separately)
 
-### KQGD Presence Rules
+### 3. Pure Functions (No Shared State)
 
-| snapshot_type | Parse KQGD? | class_summary populated? |
-|--------------|-------------|---------------------------|
-| baseline | YES | YES |
-| actual_hk2 | YES | YES |
-| actual_hk1 | NO | NO |
-| target | NO | NO |
-| commitment | NO | NO |
+`_parse_kqgd_summary()` is pure:
+- All variables initialized inside function
+- `df = df.copy()` at start
+- No caching between calls
+- Batch processing produces identical results
 
-### student_count Consistency
+### 4. Defensive Parsing
 
-- subject_snapshots.student_count: Total students from subject data rows
-- class_summary: HTXS+HTT+HT+CHT == student_count_from_KQGD
-- Cross-validation: class_summary student_count should align with subject_snapshots
+- Tolerates empty score columns → downgrades to qualitative
+- Handles `\uf0fc` (Wingdings) tick marks
+- Accepts float STT values (1.0, 2.0)
+- Single-column subjects forced to qualitative
+- No hardcoded subject names
 
----
-
-## 6. Snapshot Rules
-
-### Snapshot Types
-
-| snapshot_type | Description | KQGD? | subject_snapshots? |
-|--------------|-------------|-------|-------------------|
-| baseline | HK2 of previous academic year | YES | YES |
-| actual_hk1 | Current academic year, HK1 | NO | YES |
-| actual_hk2 | Current academic year, HK2 | YES | YES |
-| target | Phấn đấu (derived from baseline) | NO | YES |
-| commitment | Cam kết GV (manual input) | NO | NO |
-
-### class_summary Constraint
-
-class_summary is populated ONLY for:
-- baseline
-- actual_hk2
-
----
-
-## 7. Parser Rules
-
-### Identity Preservation
-- Parser MUST NOT modify `academic_year`
-- Parser MUST NOT modify `class_name`
-
-### Required Validations
-- Header row detection
-- Subject grouping (1 column vs 2 columns per subject)
-- Data consistency within grouped columns
-- Non-negative numeric fields
-
-### Failure Semantics
-- Parser MUST NOT silently fail
-- Parser MUST raise structured errors with descriptive messages
-- Errors must include: class_name, academic_year, subject (if applicable)
-
----
-
-## 8. Forbidden Patterns
-
-- Treating scored subjects as score-only (ignoring T/H/C)
-- Ignoring T/H/C in scored subjects
-- Mixing subject types within same logical group
-- Setting avg_score for qualitative subjects
-- Setting NULL avg_score for scored subjects
-- Silent exception handling
-- Shifting academic_year or class_name in parser layer
-- Skipping KQGD validation
-- Allowing T + H + C > student_count for qualitative subjects
-- Parsing KQGD for snapshot_type NOT IN {"baseline", "actual_hk2"}
-
----
-
-## 9. Current Implementation State
-
-### Actually Implemented
-- `app/main.py`: UI, data upload, process_files, upsert logic, some transformation
-- `app/infra/vnedu_parser.py`: Excel parsing, header detection, checkbox counting, KQGD extraction
-- `app/core/compare.py`: Comparison logic
-
-### NOT Implemented (TODO)
-- Formal data access layer (repositories/DAO)
-- Domain model (pydantic/dataclass)
-- Unit tests for parser
-- Column grouping validation (scored vs qualitative detection)
-
-### Known Issues
-- Transformation logic (class shifting) still in main.py, not in compare layer
-- No formal validation of subject type constraints
-- No unit tests for KQGD parsing gate
-- Dead code files were deleted but test_db.py references them
-
----
-
-## 10. File Structure
+## File Structure
 
 ```
-D:\coding\qlcl\
-├── app/
-│   ├── main.py              # Streamlit UI, upsert, transformation
-│   ├── core/
-│   │   └── compare.py       # Comparison logic
-│   └── infra/
-│       └── vnedu_parser.py  # Excel parser, KQGD extraction
-├── docs/
-│   ├── contracts.md         # SINGLE SOURCE OF TRUTH
-│   ├── engineering_review.md
-│   ├── todo.md
-│   └── architecture.md
-├── input/                  # Sample Excel files
-├── sqms.db                 # SQLite database
-└── requirements.txt
+app/
+├── __init__.py
+├── main.py                    # Streamlit UI
+├── core/
+│   ├── __init__.py
+│   ├── compare.py             # Baseline vs actual comparison
+│   ├── snapshot.py            # Snapshot management
+│   └── ports.py               # Interface definitions
+├── db/
+│   └── connection.py          # SQLite connection
+├── domain/
+│   ├── models.py              # SubjectSnapshot, ClassSummary, SnapshotType
+│   └── adapters.py            # Parser dict → domain objects
+├── infra/
+│   ├── __init__.py
+│   ├── vnedu_parser.py        # Excel parser (main)
+│   ├── file_loader.py         # File loading + .xls conversion
+│   └── excel_normalizer.py    # Format normalization
+├── repositories/
+│   ├── __init__.py
+│   ├── interfaces.py          # Abstract repository
+│   └── sqlite_repository.py   # SQLite implementation
+├── usecases/
+│   └── process_excel.py       # Orchestration
+└── models/
+    └── __init__.py             # Legacy (deprecated)
+
+docs/
+├── architecture.md            # This file
+├── contracts.md               # Layer contracts
+├── engineering_review.md      # Post-refactor review
+└── todo.md                    # Roadmap
 ```
+
+## Known Edge Cases
+
+| Issue | Cause | Mitigation |
+|-------|-------|------------|
+| Missing KQGD columns | File has no KQGD section | Return None, skip class_summary |
+| Baseline grade 5 | Policy mismatch (TT22 vs TT27) | Domain-level validation |
+| XLS encoding issues | xlrd can't read corrupted .xls | pywin32 COM fallback |
+| Tick symbols `\uf0fc` | Wingdings font in Excel | Normalize in CHECKBOX_MARKERS |
+| Empty score columns | HK1 files lack "Điểm KTĐK" | Downgrade scored → qualitative |
+| Multi-grade subjects | Different column layouts per grade | Dynamic column plan detection |
