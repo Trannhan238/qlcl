@@ -71,23 +71,21 @@ class SubjectSnapshot:
         """
         Validate theo business rules từ contracts.md.
 
+        Rules:
+        - T, H, C must be non-negative
+        - T + H + C <= student_count
+        - avg_score in [0, 10] if provided (subject_type handled by parser)
+
         Raises:
             ValueError: Nếu vi phạm bất kỳ rule nào.
         """
-        # 1. avg_score constraints
-        if self.snapshot_type in {SnapshotType.BASELINE, SnapshotType.ACTUAL_HK1,
-                                  SnapshotType.ACTUAL_HK2, SnapshotType.TARGET}:
-            # Determined by subject type - will be validated at usecase level
-            # because we don't know if subject is scored or qualitative here
-            pass
-
-        # 2. Non-negative counts
+        # 1. Non-negative counts
         if self.T < 0 or self.H < 0 or self.C < 0:
             raise ValueError(
                 f"Negative T/H/C counts: T={self.T}, H={self.H}, C={self.C}"
             )
 
-        # 3. student_count consistency
+        # 2. student_count consistency
         total_thc = self.T + self.H + self.C
         if total_thc > self.student_count:
             raise ValueError(
@@ -96,47 +94,21 @@ class SubjectSnapshot:
                 f"year '{self.academic_year}'"
             )
 
-    def is_scored(self) -> bool:
-        """
-        Xác định có phải môn có điểm số không.
-
-        Note: Đây là heuristic dựa trên tên môn.
-        Business rule: scored subjects REQUIRE avg_score NOT NULL.
-        """
-        norm = self.subject.lower()
-        scoring_keywords = [
-            "toán", "tiếng việt", "tiếng anh", "khoa học",
-            "lịch sử", "địa lí", "tin học", "vật lý", "hóa học", "sinh học"
-        ]
-        return any(kw in norm for kw in scoring_keywords)
-
-    def validate_subject_type(self) -> None:
-        """
-        Validate ràng buộc theo loại môn.
-
-        Rules (contracts.md):
-        - Scored subject: avg_score MUST NOT be NULL, MUST be in [0, 10]
-        - Qualitative subject: avg_score MUST be NULL
-
-        Raises:
-            ValueError: Nếu không đúng rule.
-        """
-        if self.is_scored():
-            if self.avg_score is not None:
-                # Scored subject with avg_score → validate range
-                if not (0.0 <= self.avg_score <= 10.0):
-                    raise ValueError(
-                        f"avg_score {self.avg_score} out of range [0, 10] "
-                        f"for subject '{self.subject}' "
-                        f"(class {self.class_name}, year {self.academic_year})"
-                    )
-            # Scored subject without avg_score → treated as qualitative, no error
-        else:  # qualitative
-            if self.avg_score is not None:
+        # 3. avg_score range if provided
+        if self.avg_score is not None:
+            if not (0.0 <= self.avg_score <= 10.0):
                 raise ValueError(
-                    f"Qualitative subject '{self.subject}' must have avg_score=NULL "
+                    f"avg_score {self.avg_score} out of range [0, 10] "
+                    f"for subject '{self.subject}' "
                     f"(class {self.class_name}, year {self.academic_year})"
                 )
+
+    def is_scored(self) -> bool:
+        """
+        Subject type is determined by parser, not by name.
+        Returns True if avg_score is not None.
+        """
+        return self.avg_score is not None
 
 
 @dataclass

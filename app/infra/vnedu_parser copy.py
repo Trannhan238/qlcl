@@ -613,15 +613,11 @@ def _parse_kqgd_summary(
     HTXS = HTT = HT = CHT = 0
     total_students = 0
 
+    # 🔥 FIX 3: detect đúng học sinh
     def _is_student(val):
-        """Accept STT values: int, float, string. Ignore NaN/empty."""
         if pd.isna(val):
             return False
-        try:
-            n = float(val)
-            return n == int(n) and n > 0
-        except (ValueError, TypeError):
-            return False
+        return str(val).strip().isdigit()
 
     for row_idx in range(data_start, len(df)):
         row = df.iloc[row_idx]
@@ -863,134 +859,93 @@ def _validate_subject_columns(
             )
 
 
-
 def _build_column_plan(df: pd.DataFrame) -> Tuple[List[Dict[str, Any]], List[int]]:
     """
-    Robust dynamic subject detection for VNEDU Excel.
+    Dynamic subject detection from header structure.
 
-    Handles:
-    - Multi-level headers (group/main/sub/metric)
-    - Subject splitting (e.g. Nghệ thuật → Âm nhạc, Mĩ thuật)
-    - Variable number of subjects per grade
-    - Column drift / misalignment
+    Algorithm:
+        1. Read h_main (row 6, ffill) → subject name per column
+        2. Filter by h_group (row 5, ffill) → only "Môn học" section
+        3. Read h_metrics (row 8) → column type (level/score)
+        4. Group columns by subject name from h_main
+        5. Determine subject_type: has "score" column → scored, else qualitative
+
+    No hardcoded subject names. Works for any grade level.
+
+    Input:
+        df (pd.DataFrame): DataFrame từ Excel
+
+    Output:
+        (Tuple[List[Dict], List[int]]):
+            - [0]: Danh sách subject entries
+            - [1]: Danh sách column indices đã used
     """
-
     if len(df) < 10:
         return [], []
 
-    # ===== HEADER EXTRACTION =====
-    h_group = df.iloc[5].ffill()
-    h_main = df.iloc[6].ffill()
-    h_sub = df.iloc[7].ffill()
-    h_metrics = df.iloc[8]
+    h_group = df.iloc[5].ffill() if len(df) > 5 else pd.Series()
+    h_main = df.iloc[6].ffill() if len(df) > 6 else pd.Series()
+    h_sub = df.iloc[7] if len(df) > 7 else pd.Series()
+    h_metrics = df.iloc[8] if len(df) > 8 else pd.Series()
 
-    def norm(x):
-        return _normalize(str(x)) if pd.notna(x) else ""
-
-    # ===== STEP 1: COLLECT VALID COLUMNS =====
+    # Step 1: Collect columns in "Môn học" section with subject name
     col_data: List[Dict[str, Any]] = []
-
     for col in range(len(df.columns)):
-        group_norm = norm(h_group.iloc[col])
-
-        # chỉ lấy vùng "Môn học"
-        if not group_norm or "mon hoc" not in group_norm:
+        group_raw = str(h_group.iloc[col]).strip() if pd.notna(h_group.iloc[col]) else ""
+        group_norm = _normalize(group_raw)
+        if group_norm and "mon hoc" not in group_norm:
             continue
 
-        main = str(h_main.iloc[col]).strip() if pd.notna(h_main.iloc[col]) else ""
-        sub = str(h_sub.iloc[col]).strip() if pd.notna(h_sub.iloc[col]) else ""
-
-        if not main:
+        main_name = str(h_main.iloc[col]).strip() if pd.notna(h_main.iloc[col]) else ""
+        if not main_name:
             continue
 
-        metric_norm = norm(h_metrics.iloc[col])
+        metric_raw = str(h_metrics.iloc[col]).strip() if pd.notna(h_metrics.iloc[col]) else ""
+        metric_norm = _normalize(metric_raw)
 
-        is_score = "diem" in metric_norm and ("tb" in metric_norm or "kt" in metric_norm)
-        is_level = "muc" in metric_norm or "dat" in metric_norm
+        is_level = "muc dat duoc" in metric_norm or "muc do" in metric_norm
+        is_score = "diem" in metric_norm
 
-        # ❗ loại bỏ column không rõ nghĩa
-        if not (is_score or is_level):
-            continue
-
-        # ===== BUILD FULL SUBJECT NAME =====
-        full_name = main
-        if sub and norm(sub) != norm(main):
-            full_name = f"{main} - {sub}"
+        # Fallback: no metric label → treat as level
+        if not (is_level or is_score):
+            is_level = True
 
         col_data.append({
             "col": col,
             "metric": "score" if is_score else "level",
-            "subject": full_name.strip(),
+            "main_name": main_name,
         })
 
-    if not col_data:
-        return [], []
-
-    # ===== STEP 2: GROUP CONTIGUOUS COLUMNS =====
-    groups: List[Dict[str, Any]] = []
-    current_group = None
-
+    # Step 2: Group columns by main_name (subject)
+    subjects: Dict[str, List[Dict[str, Any]]] = {}
     for cd in col_data:
-        if not current_group:
-            current_group = {
-                "subject": cd["subject"],
-                "cols": [cd]
-            }
-            groups.append(current_group)
-            continue
+        name = cd["main_name"]
+        if name not in subjects:
+            subjects[name] = []
+        subjects[name].append(cd)
 
-        # nếu cùng subject → tiếp tục group
-        if cd["subject"] == current_group["subject"]:
-            current_group["cols"].append(cd)
-        else:
-            current_group = {
-                "subject": cd["subject"],
-                "cols": [cd]
-            }
-            groups.append(current_group)
-
-    # ===== STEP 3: BUILD SUBJECT ENTRIES =====
+    # Step 3: Build subject entries
     subject_entries: List[Dict[str, Any]] = []
-    used_cols: List[int] = []
+    all_used_cols: List[int] = []
 
-    for g in groups:
-        subject_name = g["subject"]
-        cols = g["cols"]
-
+    for subject_name, cols in subjects.items():
         col_indices = [c["col"] for c in cols]
         metrics = [c["metric"] for c in cols]
+        has_score = "score" in metrics
 
-        level_cols = [c["col"] for c in cols if c["metric"] == "level"]
-        score_cols = [c["col"] for c in cols if c["metric"] == "score"]
-
-        # ===== DETERMINE TYPE =====
-        # Rule: scored ONLY if score column exists AND has valid header
-        # Single-column subjects are always qualitative
-        has_score_metric = bool(score_cols)
-
-        if len(col_indices) == 1:
-            # SAFETY: single column → always qualitative
-            subject_type = "qualitative"
-        elif has_score_metric:
-            subject_type = "scored"
-        else:
-            subject_type = "qualitative"
-
-        # ===== SAFETY FIX =====
-        level_col = level_cols[0] if level_cols else None
-        score_col = score_cols[0] if score_cols else None
+        level_col = next((c["col"] for c in cols if c["metric"] == "level"), None)
+        score_col = next((c["col"] for c in cols if c["metric"] == "score"), None)
 
         subject_entries.append({
             "subject": subject_name,
-            "subject_type": subject_type,
+            "subject_type": "scored" if has_score else "qualitative",
             "columns": sorted(col_indices),
             "level_col": level_col,
             "score_col": score_col,
         })
+        all_used_cols.extend(col_indices)
 
-        used_cols.extend(col_indices)
-
-    return subject_entries, sorted(set(used_cols))
+    return subject_entries, sorted(set(all_used_cols))
 
 
 def parse_sheet(df: pd.DataFrame, class_name: str, academic_year: str) -> List[Dict[str, Any]]:
@@ -1065,17 +1020,7 @@ def parse_sheet(df: pd.DataFrame, class_name: str, academic_year: str) -> List[D
 
 
     # Filter out empty rows (summary rows thường có nan ở col 0)
-    # Safe student detection: handle int, float, string
-    def _is_student_row(val):
-        if pd.isna(val):
-            return False
-        try:
-            n = float(val)
-            return n == int(n) and n > 0
-        except (ValueError, TypeError):
-            return False
-
-    data_rows = data_rows[data_rows.iloc[:, 0].apply(_is_student_row)]
+    data_rows = data_rows[data_rows.iloc[:, 0].apply(lambda x: str(x).isdigit())]
 
     # Đếm số dòng hợp lệ = số học sinh thực tế
     student_count = len(data_rows)

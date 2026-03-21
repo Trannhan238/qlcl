@@ -89,7 +89,6 @@ class ProcessExcelUseCase:
             for subj in subjects:
                 try:
                     subj.validate()
-                    subj.validate_subject_type()
                 except ValueError as e:
                     result.add_error(f"Validation error for subject '{subj.subject}': {e}")
                     continue
